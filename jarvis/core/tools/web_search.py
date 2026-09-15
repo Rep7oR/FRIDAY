@@ -24,19 +24,22 @@ class WebSearchTool(Tool):
 
     def run(self, query: str, max_results: int = 5) -> str:
         max_results = max(1, min(int(max_results), 10))
-        try:
-            from duckduckgo_search import DDGS
-        except ImportError:
+        DDGS = self._import_ddgs()
+        if DDGS is None:
             return (
-                "Error: the 'duckduckgo_search' package is not installed. "
-                "Run `pip install duckduckgo_search` to enable web search."
+                "Error: no search backend installed. Run `pip install ddgs` "
+                "(the current package name) or `pip install duckduckgo_search`."
             )
 
         try:
             with DDGS() as ddgs:
                 results = list(ddgs.text(query, max_results=max_results))
         except Exception as exc:
-            return f"Error: web search failed ({exc}). Check network connectivity."
+            return (
+                f"Error: web search failed ({type(exc).__name__}: {exc}). "
+                "This is usually a network/firewall issue or DuckDuckGo rate-limiting -- "
+                "try again in a moment, or run `pip install -U ddgs` to get the latest backend."
+            )
 
         if not results:
             return f"No results found for '{query}'."
@@ -48,3 +51,20 @@ class WebSearchTool(Tool):
             body = r.get("body", "").strip()
             lines.append(f"{i}. {title}\n   {href}\n   {body}")
         return "\n".join(lines)
+
+    @staticmethod
+    def _import_ddgs():
+        # The package was renamed from `duckduckgo_search` to `ddgs`; support both so this
+        # works regardless of which one ended up installed.
+        try:
+            from ddgs import DDGS
+
+            return DDGS
+        except ImportError:
+            pass
+        try:
+            from duckduckgo_search import DDGS
+
+            return DDGS
+        except ImportError:
+            return None

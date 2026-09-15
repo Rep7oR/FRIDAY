@@ -2,7 +2,8 @@
 httpx>=0.27
 
 # Tools
-duckduckgo_search>=6.0
+ddgs>=1.0          # web search backend (formerly `duckduckgo_search`)
+duckduckgo_search>=6.0  # fallback for older pins; the tool tries `ddgs` first
 
 # Web UI (`python -m jarvis.web`) -- voice runs in the browser, no extra audio deps needed here
 fastapi>=0.110

@@ -38,8 +38,16 @@
       <div class="ring ring-mid"></div>
       <div class="ring ring-inner"></div>
       <div class="core-glow"></div>
-      <div class="core-center"></div>
+      <div class="reactor">
+        <svg class="reactor-svg" viewBox="0 0 100 100">
+          <polygon class="reactor-tri reactor-tri-1" points="50,6 6,90 94,90" />
+          <polygon class="reactor-tri reactor-tri-2" points="50,6 6,90 94,90" />
+          <polygon class="reactor-tri reactor-tri-3" points="50,6 6,90 94,90" />
+        </svg>
+        <div class="reactor-core"></div>
+      </div>
     </div>
+    <div class="waveform" id="waveform"></div>
     <div class="core-state" id="core-state">IDLE</div>
   </section>
 
@@ -50,6 +58,9 @@
 </main>
 
 <footer class="composer">
+  <button id="wake-btn" class="icon-btn" title="Toggle 'Hey Jarvis' always-listening mode">
+    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 2a5 5 0 0 0-5 5v10a5 5 0 0 0 10 0V7a5 5 0 0 0-5-5zm7 9v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V24h2v-2.06A9 9 0 0 0 21 13v-2h-2z"/></svg>
+  </button>
   <button id="mic-btn" class="icon-btn" title="Speak (voice input)">
     <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
   </button>

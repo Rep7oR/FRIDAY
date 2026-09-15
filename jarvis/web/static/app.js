@@ -5,6 +5,7 @@
   const textInput = document.getElementById("text-input");
   const sendBtn = document.getElementById("send-btn");
   const micBtn = document.getElementById("mic-btn");
+  const wakeBtn = document.getElementById("wake-btn");
   const voiceToggle = document.getElementById("voice-toggle");
   const coreStage = document.querySelector(".core-stage");
   const coreState = document.getElementById("core-state");
@@ -13,13 +14,14 @@
   const clockEl = document.getElementById("clock");
   const remindersList = document.getElementById("reminders-list");
 
+  const WAKE_PHRASE = "hey jarvis";
   let voiceOutputEnabled = true;
-  let recognizing = false;
 
   function setCoreState(state) {
     coreStage.classList.remove("listening", "thinking", "speaking");
     if (state !== "idle") coreStage.classList.add(state);
     coreState.textContent = state.toUpperCase();
+    updateWaveformForState(state);
   }
 
   function appendEntry(who, text) {
@@ -40,8 +42,14 @@
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.02;
     utterance.onstart = () => setCoreState("speaking");
-    utterance.onend = () => setCoreState("idle");
-    utterance.onerror = () => setCoreState("idle");
+    utterance.onend = () => {
+      setCoreState("idle");
+      resumeWakeListeningIfEnabled();
+    };
+    utterance.onerror = () => {
+      setCoreState("idle");
+      resumeWakeListeningIfEnabled();
+    };
     window.speechSynthesis.speak(utterance);
   }
 
@@ -61,7 +69,10 @@
       const reply = data.reply || "(no response)";
       appendEntry("Jarvis", reply);
       speak(reply);
-      if (!voiceOutputEnabled) setCoreState("idle");
+      if (!voiceOutputEnabled) {
+        setCoreState("idle");
+        resumeWakeListeningIfEnabled();
+      }
       refreshReminders();
     } catch (err) {
       appendEntry("Jarvis", `Connection error: ${err}`);
@@ -82,45 +93,131 @@
   });
 
   // --- Voice input (Web Speech API; Chrome/Edge only) ---
+  // Two modes share one underlying recognizer, since only one can use the mic at a time:
+  //   - "capturing": one-shot, triggered by the mic button (or after a wake phrase fires).
+  //   - "wake-armed": continuous, listening for WAKE_PHRASE ("hey jarvis") in the background.
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   let recognizer = null;
-  if (SpeechRecognition) {
+  let voiceMode = "off"; // "off" | "capturing" | "wake-armed"
+  let wakeEnabled = false;
+
+  function stopRecognizer() {
+    if (recognizer) {
+      recognizer.onend = null;
+      recognizer.onresult = null;
+      recognizer.onerror = null;
+      try {
+        recognizer.stop();
+      } catch {
+        /* already stopped */
+      }
+      recognizer = null;
+    }
+  }
+
+  function captureOnce() {
+    stopRecognizer();
+    voiceMode = "capturing";
+    micBtn.classList.add("active");
     recognizer = new SpeechRecognition();
     recognizer.continuous = false;
     recognizer.interimResults = false;
     recognizer.lang = "en-US";
-
-    recognizer.onstart = () => {
-      recognizing = true;
-      micBtn.classList.add("active");
-      setCoreState("listening");
-    };
+    recognizer.onstart = () => setCoreState("listening");
+    recognizer.onresult = (event) => sendMessage(event.results[0][0].transcript);
     recognizer.onend = () => {
-      recognizing = false;
       micBtn.classList.remove("active");
+      voiceMode = "off";
       if (coreState.textContent === "LISTENING") setCoreState("idle");
+      resumeWakeListeningIfEnabled();
     };
     recognizer.onerror = () => {
-      recognizing = false;
       micBtn.classList.remove("active");
+      voiceMode = "off";
       setCoreState("idle");
+      resumeWakeListeningIfEnabled();
     };
-    recognizer.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      sendMessage(transcript);
-    };
+    recognizer.start();
+  }
 
-    micBtn.addEventListener("click", () => {
-      if (recognizing) {
-        recognizer.stop();
+  function startWakeListening() {
+    stopRecognizer();
+    voiceMode = "wake-armed";
+    recognizer = new SpeechRecognition();
+    recognizer.continuous = true;
+    recognizer.interimResults = true;
+    recognizer.lang = "en-US";
+    recognizer.onresult = (event) => {
+      const result = event.results[event.results.length - 1];
+      const transcript = result[0].transcript.trim().toLowerCase();
+      const idx = transcript.indexOf(WAKE_PHRASE);
+      if (idx === -1) return;
+      if (!result.isFinal) {
+        setCoreState("listening"); // heard the wake phrase building up
+        return;
+      }
+      const after = transcript.slice(idx + WAKE_PHRASE.length).replace(/^[,.\s]+/, "");
+      if (after.length > 2) {
+        sendMessage(after); // wake phrase + command said in one breath
       } else {
+        captureOnce(); // wake phrase alone -- listen for the command next
+      }
+    };
+    recognizer.onend = () => {
+      // Browsers auto-stop continuous recognition after periods of silence; restart it
+      // as long as wake mode is still armed and nothing else has taken over the mic.
+      if (wakeEnabled && voiceMode === "wake-armed") {
         recognizer.start();
+      }
+    };
+    recognizer.onerror = (event) => {
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        wakeEnabled = false;
+        voiceMode = "off";
+        wakeBtn.classList.remove("armed");
+      }
+    };
+    recognizer.start();
+  }
+
+  function resumeWakeListeningIfEnabled() {
+    if (wakeEnabled && voiceMode !== "wake-armed" && voiceMode !== "capturing") {
+      startWakeListening();
+    }
+  }
+
+  if (SpeechRecognition) {
+    micBtn.addEventListener("click", () => {
+      if (voiceMode === "capturing") {
+        stopRecognizer();
+        voiceMode = "off";
+        micBtn.classList.remove("active");
+        setCoreState("idle");
+      } else {
+        captureOnce();
+      }
+    });
+
+    wakeBtn.addEventListener("click", () => {
+      wakeEnabled = !wakeEnabled;
+      wakeBtn.classList.toggle("armed", wakeEnabled);
+      wakeBtn.title = wakeEnabled
+        ? `Listening for "${WAKE_PHRASE}" -- click to disable`
+        : "Toggle 'Hey Jarvis' always-listening mode";
+      if (wakeEnabled) {
+        startWakeListening();
+      } else if (voiceMode === "wake-armed") {
+        stopRecognizer();
+        voiceMode = "off";
       }
     });
   } else {
     micBtn.title = "Voice input not supported in this browser (try Chrome or Edge)";
     micBtn.style.opacity = "0.35";
     micBtn.style.cursor = "not-allowed";
+    wakeBtn.title = "Voice input not supported in this browser (try Chrome or Edge)";
+    wakeBtn.style.opacity = "0.35";
+    wakeBtn.style.cursor = "not-allowed";
   }
 
   // --- Status polling ---
@@ -166,6 +263,85 @@
 
   function tickClock() {
     clockEl.textContent = new Date().toLocaleTimeString([], { hour12: false });
+  }
+
+  // --- Waveform: idle/speaking are decorative animation; listening is driven by real mic
+  // input via an AnalyserNode, so it visibly reacts to your voice. ---
+  const waveformEl = document.getElementById("waveform");
+  const BAR_COUNT = 32;
+  const bars = [];
+  for (let i = 0; i < BAR_COUNT; i++) {
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    waveformEl.appendChild(bar);
+    bars.push(bar);
+  }
+
+  let waveformRAF = null;
+  let micStream = null;
+  let audioCtx = null;
+
+  function setBarHeights(getHeight) {
+    bars.forEach((bar, i) => {
+      bar.style.height = `${getHeight(i)}px`;
+    });
+  }
+
+  function idleWaveformLoop(t) {
+    const time = t / 600;
+    setBarHeights((i) => 3 + 5 * Math.abs(Math.sin(time + i * 0.35)));
+    waveformRAF = requestAnimationFrame(idleWaveformLoop);
+  }
+
+  function speakingWaveformLoop() {
+    setBarHeights(() => 4 + Math.random() * 28);
+    waveformRAF = requestAnimationFrame(speakingWaveformLoop);
+  }
+
+  async function startMicWaveform() {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      idleWaveformLoop(0); // mic unavailable/denied -- fall back to decorative animation
+      return;
+    }
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaStreamSource(micStream);
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 64;
+    source.connect(analyser);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+
+    function loop() {
+      analyser.getByteFrequencyData(data);
+      setBarHeights((i) => 3 + (data[i % data.length] / 255) * 32);
+      waveformRAF = requestAnimationFrame(loop);
+    }
+    loop();
+  }
+
+  function stopWaveformLoop() {
+    if (waveformRAF) cancelAnimationFrame(waveformRAF);
+    waveformRAF = null;
+    if (micStream) {
+      micStream.getTracks().forEach((t) => t.stop());
+      micStream = null;
+    }
+    if (audioCtx) {
+      audioCtx.close();
+      audioCtx = null;
+    }
+  }
+
+  function updateWaveformForState(state) {
+    stopWaveformLoop();
+    if (state === "listening" && navigator.mediaDevices?.getUserMedia) {
+      startMicWaveform();
+    } else if (state === "speaking") {
+      speakingWaveformLoop();
+    } else {
+      idleWaveformLoop(0);
+    }
   }
 
   setCoreState("idle");

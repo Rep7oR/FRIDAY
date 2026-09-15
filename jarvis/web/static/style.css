@@ -153,12 +153,49 @@ html, body {
   background: radial-gradient(circle, var(--accent-glow) 0%, rgba(52,226,255,0.08) 60%, transparent 75%);
   animation: pulse-glow 2.6s ease-in-out infinite;
 }
-.core-center {
+
+/* Triangular reactor centerpiece: three stroked triangles offset by 120deg, spinning slowly
+   in alternating directions around a small glowing core -- an original sci-fi HUD motif, not
+   a copy of any specific film's design/branding. */
+.reactor { position: absolute; inset: 95px; }
+.reactor-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.reactor-tri {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 5px var(--accent-glow));
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.reactor-tri-1 { animation: spin 9s linear infinite; opacity: 0.85; }
+.reactor-tri-2 { animation: spin-reverse 9s linear infinite; transform: rotate(120deg); opacity: 0.55; }
+.reactor-tri-3 { animation: spin 9s linear infinite; transform: rotate(240deg); opacity: 0.55; }
+.reactor-core {
   position: absolute;
-  inset: 118px;
-  border-radius: 50%;
+  inset: 40%;
+  border-radius: 2px;
   background: radial-gradient(circle at 40% 35%, #eafcff, var(--accent) 45%, var(--accent-dim) 100%);
-  box-shadow: 0 0 30px 6px var(--accent-glow), inset 0 0 20px rgba(255,255,255,0.5);
+  box-shadow: 0 0 30px 8px var(--accent-glow), inset 0 0 16px rgba(255,255,255,0.6);
+  animation: pulse-glow 2.6s ease-in-out infinite;
+}
+
+.waveform {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  height: 36px;
+  width: 220px;
+}
+.waveform .bar {
+  width: 3px;
+  min-height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(to top, var(--accent-dim), var(--accent));
+  box-shadow: 0 0 4px var(--accent-glow);
+  transform-origin: bottom;
+  transition: height 0.08s ease-out;
 }
 
 .core-state {
@@ -175,9 +212,12 @@ html, body {
 .core-stage.thinking .ring-outer { animation-duration: 3s; }
 .core-stage.thinking .ring-mid { animation-duration: 2s; }
 .core-stage.thinking .ring-inner { animation-duration: 1.2s; }
+.core-stage.thinking .reactor-tri { animation-duration: 2.5s; }
 .core-stage.thinking .core-state { color: var(--accent); }
 .core-stage.speaking .core-glow { animation: pulse-glow 0.5s ease-in-out infinite; }
+.core-stage.speaking .reactor-core { animation: pulse-glow 0.4s ease-in-out infinite; }
 .core-stage.speaking .core-state { color: #ffd452; }
+.core-stage.listening .reactor-core { box-shadow: 0 0 40px 10px rgba(82,255,184,0.6), inset 0 0 16px rgba(255,255,255,0.6); }
 
 .composer {
   display: flex;
@@ -216,6 +256,7 @@ html, body {
 .icon-btn.active { background: var(--accent); color: #04141c; box-shadow: 0 0 16px var(--accent-glow); }
 .icon-btn.toggle-on { color: var(--accent); }
 .icon-btn.toggle-off { color: var(--text-dim); background: rgba(255,255,255,0.02); }
+.icon-btn.armed { color: #52ffb8; border-color: #52ffb8; animation: pulse-dot 1.8s ease-in-out infinite; }
 
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-thumb { background: var(--accent-dim); border-radius: 3px; }
