@@ -113,6 +113,7 @@ html, body {
 .chat-entry { padding: 8px 10px; border-radius: 4px; border: 1px solid var(--border); line-height: 1.5; }
 .chat-entry.user { border-color: rgba(255,255,255,0.15); color: #cfd8dc; }
 .chat-entry.jarvis { border-color: var(--border); color: var(--text); background: rgba(52,226,255,0.05); }
+.chat-entry.system { border-color: rgba(255,93,93,0.4); color: #ffb4b4; background: rgba(255,93,93,0.06); }
 .chat-entry .who { display: block; font-size: 10px; letter-spacing: 0.15em; color: var(--accent-dim); margin-bottom: 4px; }
 
 .core-stage {

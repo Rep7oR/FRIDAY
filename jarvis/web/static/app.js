@@ -26,7 +26,8 @@
 
   function appendEntry(who, text) {
     const entry = document.createElement("div");
-    entry.className = `chat-entry ${who === "You" ? "user" : "jarvis"}`;
+    const cls = who === "You" ? "user" : who === "System" ? "system" : "jarvis";
+    entry.className = `chat-entry ${cls}`;
     const label = document.createElement("span");
     label.className = "who";
     label.textContent = who;
@@ -34,6 +35,28 @@
     entry.appendChild(document.createTextNode(text));
     chatLog.appendChild(entry);
     chatLog.scrollTop = chatLog.scrollHeight;
+  }
+
+  // Human-readable explanations for SpeechRecognition's error codes, since Chrome gives no
+  // on-screen feedback of its own when recognition fails.
+  const VOICE_ERROR_MESSAGES = {
+    network:
+      "Network error talking to the browser's speech-recognition service (it needs internet " +
+      "access to Google's servers, even though everything else here runs locally). Check your " +
+      "connection or firewall.",
+    "not-allowed": "Microphone access was blocked. Allow it for this site and try again.",
+    "service-not-allowed": "Microphone access was blocked. Allow it for this site and try again.",
+    "audio-capture": "No microphone was found. Check it's connected and not in use by another app.",
+    "language-not-supported": "The recognition language isn't supported by this browser.",
+  };
+  let lastVoiceErrorLoggedAt = 0;
+  function logVoiceError(errorCode) {
+    if (errorCode === "no-speech" || errorCode === "aborted") return; // routine, not a failure
+    const now = Date.now();
+    if (now - lastVoiceErrorLoggedAt < 4000) return; // don't spam on rapid auto-restarts
+    lastVoiceErrorLoggedAt = now;
+    const message = VOICE_ERROR_MESSAGES[errorCode] || `Speech recognition error: ${errorCode}`;
+    appendEntry("System", message);
   }
 
   function speak(text) {
@@ -131,10 +154,11 @@
       if (coreState.textContent === "LISTENING") setCoreState("idle");
       resumeWakeListeningIfEnabled();
     };
-    recognizer.onerror = () => {
+    recognizer.onerror = (event) => {
       micBtn.classList.remove("active");
       voiceMode = "off";
       setCoreState("idle");
+      logVoiceError(event.error);
       resumeWakeListeningIfEnabled();
     };
     recognizer.start();
@@ -171,6 +195,7 @@
       }
     };
     recognizer.onerror = (event) => {
+      logVoiceError(event.error);
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
         wakeEnabled = false;
         voiceMode = "off";
