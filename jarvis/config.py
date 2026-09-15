@@ -34,6 +34,20 @@ EMAIL_APP_PASSWORD = os.environ.get("JARVIS_EMAIL_APP_PASSWORD", "")
 EMAIL_IMAP_HOST = os.environ.get("JARVIS_EMAIL_IMAP_HOST", "imap.gmail.com")
 EMAIL_IMAP_PORT = int(os.environ.get("JARVIS_EMAIL_IMAP_PORT", "993"))
 
+# Google Calendar (optional -- CalendarEventsTool explains what's missing if unset).
+# credentials.json is the OAuth client secret you download from Google Cloud Console;
+# token.json is generated locally by scripts/google_calendar_auth.py after a one-time
+# interactive consent flow and holds no secret beyond your own refresh token. Both are
+# read-only scoped -- Jarvis cannot create, edit, or delete events.
+GOOGLE_CALENDAR_CREDENTIALS_PATH = Path(
+    os.environ.get("JARVIS_GOOGLE_CALENDAR_CREDENTIALS", DATA_DIR / "google_credentials.json")
+)
+GOOGLE_CALENDAR_TOKEN_PATH = Path(
+    os.environ.get("JARVIS_GOOGLE_CALENDAR_TOKEN", DATA_DIR / "google_token.json")
+)
+GOOGLE_CALENDAR_ID = os.environ.get("JARVIS_GOOGLE_CALENDAR_ID", "primary")
+GOOGLE_CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+
 SYSTEM_PROMPT = f"""You are {AGENT_NAME}, a personal AI assistant running locally on the user's own
 machine, in the style of a calm, unflappable butler-AI: formal but warm, dryly witty, never
 obsequious or overly chipper. Address the user as "{HONORIFIC}" occasionally and naturally

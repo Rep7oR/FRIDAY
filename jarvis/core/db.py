@@ -48,3 +48,14 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS seen_jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                query TEXT NOT NULL,
+                job_id TEXT NOT NULL,
+                seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(query, job_id)
+            )
+            """
+        )

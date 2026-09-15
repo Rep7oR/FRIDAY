@@ -21,8 +21,14 @@ jarvis/
       code_exec.py        Run short Python snippets in a subprocess
       scheduler.py        Reminders (SQLite) + background due-checker
       email_check.py       Inbox headers via IMAP (needs your credentials, see Setup)
-      job_search.py         Job postings via RemoteOK (no API key needed)
+      job_search.py         Job postings via RemoteOK (no API key needed) + new-postings dedupe
+      calendar_events.py     Upcoming Google Calendar events, read-only (see Setup)
       news.py                Sector/topic news via DuckDuckGo news search
+  agents/                Standalone single-purpose agents (see below)
+    base.py               Shared LLM <-> tool loop each one runs on its own
+    email_agent.py         EmailAgent — inbox briefings
+    job_agent.py            JobAgent — newly posted jobs only
+    calendar_agent.py        CalendarAgent — upcoming events
   cli.py                Text-mode entrypoint (no audio hardware needed)
   voice/
     stt.py               Speech-to-text (faster-whisper, local)
@@ -42,6 +48,29 @@ registered `Tool`. The model itself decides whether the request needs a web sear
 operation, code execution, a reminder, or just a direct answer, and asks for the matching
 tool call(s). Adding a new capability means writing one `Tool` subclass and registering it in
 `core/tools/__init__.py` — no routing logic to update.
+
+## Standalone agents
+
+Alongside the one orchestrator above, `jarvis/agents/` has three single-purpose agents —
+each with its own system prompt, its own one-tool registry, and its own `run()` loop
+(`jarvis/agents/base.py`). Use these when you want to ask one thing directly (or wire them
+into your own script/scheduler) instead of going through the main assistant:
+
+```python
+from jarvis.agents import EmailAgent, JobAgent, CalendarAgent
+
+print(EmailAgent().briefing())                 # summarize unread inbox
+print(JobAgent().check("python developer"))     # only postings new since last check
+print(CalendarAgent().briefing(days_ahead=3))   # what's coming up
+```
+
+- **EmailAgent** — same read-only IMAP headers as `check_email` (see Setup below for
+  credentials), summarized into a briefing instead of a raw list.
+- **JobAgent** — searches RemoteOK and remembers what it's already shown you per query
+  (in SQLite), so `.check("query")` only ever reports postings that are actually new. The
+  first check for a query has no baseline yet and says so rather than implying nothing's open.
+- **CalendarAgent** — read-only upcoming Google Calendar events. Needs a one-time OAuth
+  setup — see "Enable calendar events" below.
 
 ## Setup
 
@@ -73,6 +102,23 @@ tool call(s). Adding a new capability means writing one `Tool` subclass and regi
    Without these set, `check_email` just tells you it isn't configured instead of failing
    cryptically. The tool only ever reads headers (sender/subject/date) — never message
    bodies, and there's no send/delete capability.
+4. **(Optional) Enable calendar events**, needed for `CalendarAgent`/`check_calendar`:
+   - Go to [console.cloud.google.com](https://console.cloud.google.com), create (or pick) a
+     project, then **APIs & Services → Library** and enable the **Google Calendar API**.
+   - **APIs & Services → Credentials → Create Credentials → OAuth client ID**. If prompted,
+     configure the consent screen first (External is fine; add yourself as a test user).
+     Application type: **Desktop app**.
+   - Download the resulting JSON and save it as `data/google_credentials.json` (or point
+     `JARVIS_GOOGLE_CALENDAR_CREDENTIALS` at wherever you put it).
+   - Run the one-time interactive auth flow — this opens a browser for you to sign in and
+     grant **read-only** calendar access:
+     ```bash
+     python -m scripts.google_calendar_auth
+     ```
+     This writes `data/google_token.json`; after that, `CalendarAgent`/`check_calendar`
+     refresh the token silently. Without it, they just explain what's missing instead of
+     failing cryptically. Google Calendar access here is read-only — Jarvis cannot create,
+     edit, or delete events.
 
 ## Running it
 
@@ -125,8 +171,9 @@ pytest
 ```
 
 Tests cover the tool sandbox (including path-traversal rejection), the reminders CRUD +
-due-date logic, and the agent's tool-calling loop (against a scripted fake LLM backend, so no
-Ollama server is required to run them).
+due-date logic, the agent's tool-calling loop (against a scripted fake LLM backend, so no
+Ollama server is required to run them), and the standalone agents' loop + the job agent's
+new-postings dedupe logic (`tests/test_agents.py`).
 
 ## Extending it
 
@@ -147,8 +194,12 @@ request warrants it.
 - `run_python` and `web_search` are useful but not hardened against a fully adversarial user;
   don't expose this assistant to untrusted input without adding stricter sandboxing
   (e.g. containerized code execution, output size limits already in place).
-- Scheduling currently only supports local reminders; calendar integration is a natural
-  next `Tool` to add if you want it, following the same pattern as `email_check.py`.
-- `job_search` sources from RemoteOK's free API, so results skew remote/tech roles. Swap in
-  a broader provider (e.g. Adzuna, which needs a free API key) if you want local/non-remote
-  listings.
+- Scheduling currently only supports local reminders.
+- `job_search`/`JobAgent` source from RemoteOK's free API, so results skew remote/tech roles.
+  Swap in a broader provider (e.g. Adzuna, which needs a free API key) if you want
+  local/non-remote listings.
+- The Google Calendar setup (`scripts/google_calendar_auth.py`) hasn't been exercised
+  end-to-end in this sandboxed dev environment — a broken `cryptography` Rust-binding install
+  here made the OAuth flow itself untestable locally, though `CalendarEventsTool`'s
+  not-configured/not-installed error paths were verified. Run the setup on your own machine
+  and let me know if anything doesn't match.
