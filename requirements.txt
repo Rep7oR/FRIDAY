@@ -4,6 +4,10 @@ httpx>=0.27
 # Tools
 duckduckgo_search>=6.0
 
+# Web UI (`python -m jarvis.web`) -- voice runs in the browser, no extra audio deps needed here
+fastapi>=0.110
+uvicorn[standard]>=0.29
+
 # Voice (optional but needed for `python -m jarvis.main`)
 faster-whisper>=1.0
 pyttsx3>=2.90

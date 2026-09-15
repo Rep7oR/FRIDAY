@@ -27,6 +27,10 @@ jarvis/
     wake_word.py          Push-to-talk or "say the wake word" listening triggers
     pipeline.py          Wires trigger -> record -> STT -> agent -> TTS
   main.py               Voice-mode entrypoint
+  web/
+    server.py            FastAPI app: /api/chat, /api/reminders, /api/status
+    __main__.py          `python -m jarvis.web` entrypoint
+    static/               HUD-style single-page frontend (voice via browser Web Speech API)
 ```
 
 **How "multiple tasks allocated to an agent" works here:** there's one orchestrator
@@ -68,6 +72,17 @@ python -m jarvis.main --wake-word  # always-listening; needs `pip install openwa
 Both entrypoints share the same `Agent`, tools, and reminders, so a reminder you set in text
 mode will fire (and get spoken) in voice mode too.
 
+**Interactive web UI (HUD-style, with voice, in your browser):**
+```bash
+python -m jarvis.web
+```
+Then open **http://127.0.0.1:8000** in Chrome or Edge. The mic button uses the browser's
+built-in speech recognition (Web Speech API) to capture voice input, and replies are read
+aloud with `speechSynthesis` — no server-side audio libraries needed for this mode, so it
+works the same on Windows/macOS/Linux as long as the browser supports it (Firefox and Safari
+don't support `SpeechRecognition` yet; typing still works everywhere). The status dot at the
+top shows whether it can reach Ollama and whether the configured model is pulled.
+
 ## Configuration
 
 All settings are environment variables with local defaults (see `jarvis/config.py`):
@@ -103,8 +118,9 @@ request warrants it.
 
 ## Known limitations
 
-- Voice mode requires local audio hardware and hasn't been exercised end-to-end in this
-  sandboxed dev environment — verify it on your own machine.
+- CLI voice mode (`jarvis.main`) requires local audio hardware and hasn't been exercised
+  end-to-end in this sandboxed dev environment — verify it on your own machine. The web UI's
+  voice input/output runs in the browser instead, so it doesn't have this limitation.
 - `run_python` and `web_search` are useful but not hardened against a fully adversarial user;
   don't expose this assistant to untrusted input without adding stricter sandboxing
   (e.g. containerized code execution, output size limits already in place).

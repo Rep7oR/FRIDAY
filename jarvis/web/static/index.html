@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JARVIS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<div class="scanlines"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-dot"></span>
+    <span class="brand-name">J.A.R.V.I.S.</span>
+  </div>
+  <div class="status" id="status">
+    <span class="status-dot" id="status-dot"></span>
+    <span id="status-text">connecting&hellip;</span>
+  </div>
+  <div class="clock" id="clock">--:--:--</div>
+</header>
+
+<main class="layout">
+  <aside class="panel panel-left">
+    <h2>Reminders</h2>
+    <ul id="reminders-list" class="reminders-list">
+      <li class="muted">none yet</li>
+    </ul>
+  </aside>
+
+  <section class="core-stage">
+    <div class="core" id="core">
+      <div class="ring ring-outer"></div>
+      <div class="ring ring-mid"></div>
+      <div class="ring ring-inner"></div>
+      <div class="core-glow"></div>
+      <div class="core-center"></div>
+    </div>
+    <div class="core-state" id="core-state">IDLE</div>
+  </section>
+
+  <aside class="panel panel-right">
+    <h2>Log</h2>
+    <div id="chat-log" class="chat-log"></div>
+  </aside>
+</main>
+
+<footer class="composer">
+  <button id="mic-btn" class="icon-btn" title="Speak (voice input)">
+    <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+  </button>
+  <input id="text-input" type="text" placeholder="Ask Jarvis anything..." autocomplete="off" />
+  <button id="send-btn" class="icon-btn" title="Send">
+    <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+  </button>
+  <button id="voice-toggle" class="icon-btn toggle-on" title="Toggle spoken replies">
+    <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M3 10v4h4l5 5V5L7 10H3zm13.5 2A4.5 4.5 0 0 0 15 8.29v7.42A4.5 4.5 0 0 0 16.5 12z"/></svg>
+  </button>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
