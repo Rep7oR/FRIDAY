@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from jarvis import config
 from jarvis.core.agent import Agent
-from jarvis.core.tools.scheduler import ListRemindersTool
+from jarvis.core.tools.scheduler import CompleteReminderTool, ListRemindersTool, get_due_reminders
 from jarvis.web import system_stats, weather as weather_module
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -66,6 +66,17 @@ def chat(request: ChatRequest) -> ChatResponse:
 @app.get("/api/reminders")
 def reminders() -> dict:
     return {"reminders": ListRemindersTool().run()}
+
+
+@app.get("/api/due_reminders")
+def due_reminders() -> dict:
+    """Reminders whose due time has passed, for the web UI to surface as a toast/spoken
+    alert. Marks each one done so it only fires once, same as the CLI/voice ReminderChecker
+    (the web server otherwise has no background thread polling for these)."""
+    due = get_due_reminders()
+    for reminder in due:
+        CompleteReminderTool().run(reminder_id=reminder["id"])
+    return {"due": due}
 
 
 @app.get("/api/status")

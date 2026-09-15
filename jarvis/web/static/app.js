@@ -18,6 +18,27 @@
   let voiceOutputEnabled = true;
   let honorific = "sir"; // refined once /api/status reports the configured JARVIS_HONORIFIC
 
+  // --- Subtle synthetic UI sounds (Web Audio oscillator blips, no audio files needed).
+  // Gated by the same voice toggle as spoken replies, so muting one mutes both. ---
+  let uiAudioCtx = null;
+  function playTone(freq, duration = 0.09, type = "sine", gain = 0.045) {
+    if (!voiceOutputEnabled) return;
+    try {
+      uiAudioCtx = uiAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const osc = uiAudioCtx.createOscillator();
+      const gainNode = uiAudioCtx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gainNode.gain.value = gain;
+      osc.connect(gainNode).connect(uiAudioCtx.destination);
+      osc.start();
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, uiAudioCtx.currentTime + duration);
+      osc.stop(uiAudioCtx.currentTime + duration + 0.02);
+    } catch {
+      /* Web Audio unavailable -- silently skip, it's purely decorative */
+    }
+  }
+
   function timeBasedGreeting() {
     const hour = new Date().getHours();
     if (hour < 12) return "Good morning";
@@ -53,6 +74,37 @@
     entry.appendChild(document.createTextNode(text));
     chatLog.appendChild(entry);
     chatLog.scrollTop = chatLog.scrollHeight;
+    return entry;
+  }
+
+  // Reveals Jarvis's replies progressively rather than dumping the whole block of text at
+  // once -- speed scales with length so a long search result doesn't take forever to finish.
+  function appendEntryTyped(text) {
+    const entry = document.createElement("div");
+    entry.className = "chat-entry jarvis";
+    const label = document.createElement("span");
+    label.className = "who";
+    label.textContent = "Jarvis";
+    entry.appendChild(label);
+    const body = document.createElement("span");
+    const caret = document.createElement("span");
+    caret.className = "caret";
+    entry.appendChild(body);
+    entry.appendChild(caret);
+    chatLog.appendChild(entry);
+    chatLog.scrollTop = chatLog.scrollHeight;
+
+    const stepMs = Math.max(4, Math.min(16, 900 / Math.max(text.length, 1)));
+    let i = 0;
+    const timer = setInterval(() => {
+      body.textContent += text[i];
+      i++;
+      chatLog.scrollTop = chatLog.scrollHeight;
+      if (i >= text.length) {
+        clearInterval(timer);
+        caret.remove();
+      }
+    }, stepMs);
   }
 
   // Human-readable explanations for SpeechRecognition's error codes, since Chrome gives no
@@ -104,6 +156,7 @@
     appendEntry("You", text);
     textInput.value = "";
     setCoreState("thinking");
+    playTone(700, 0.06, "sine", 0.035);
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -112,7 +165,8 @@
       });
       const data = await response.json();
       const reply = data.reply || "(no response)";
-      appendEntry("Jarvis", reply);
+      playTone(500, 0.08, "sine", 0.035);
+      appendEntryTyped(reply);
       speak(reply);
       refreshReminders();
     } catch (err) {
@@ -218,7 +272,7 @@
       } else {
         // Wake phrase alone -- acknowledge it out loud, then listen for the actual command.
         const ack = randomAckPhrase();
-        appendEntry("Jarvis", ack);
+        appendEntryTyped(ack);
         stopRecognizer();
         speak(ack, () => captureOnce());
       }
@@ -368,6 +422,24 @@
     circle.style.strokeDashoffset = String(offset);
   }
 
+  // Tweens a widget's displayed number from its last value to the new one instead of
+  // snapping, so the live stats feel like they're flowing rather than flickering.
+  const lastNumberValues = new WeakMap();
+  function animateNumberTo(el, target, suffix = "%", duration = 450) {
+    if (!el) return;
+    const from = lastNumberValues.get(el) ?? target;
+    lastNumberValues.set(el, target);
+    const start = performance.now();
+    function frame(now) {
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const value = from + (target - from) * eased;
+      el.textContent = `${Math.round(value)}${suffix}`;
+      if (t < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
   function pushHistory(arr, value) {
     arr.push(value);
     if (arr.length > HISTORY_LEN) arr.shift();
@@ -413,14 +485,14 @@
       const response = await fetch("/api/system");
       const data = await response.json();
 
-      cpuValue.textContent = `${Math.round(data.cpu_percent)}%`;
+      animateNumberTo(cpuValue, data.cpu_percent);
       setGauge(cpuGauge, data.cpu_percent);
 
-      memValue.textContent = `${Math.round(data.mem_percent)}%`;
+      animateNumberTo(memValue, data.mem_percent);
       memSub.textContent = `${data.mem_used_gb} / ${data.mem_total_gb} GB`;
       setGauge(memGauge, data.mem_percent);
 
-      diskValue.textContent = `${Math.round(data.disk_percent)}%`;
+      animateNumberTo(diskValue, data.disk_percent);
       diskSub.textContent = `${data.disk_used_gb} / ${data.disk_total_gb} GB`;
       setGauge(diskGauge, data.disk_percent);
 
@@ -571,6 +643,87 @@
     }
   }
 
+  // --- Toast notifications (used for reminders firing) ---
+  const toastContainer = document.getElementById("toast-container");
+  function showToast(title, body, durationMs = 6000) {
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    const titleEl = document.createElement("div");
+    titleEl.className = "toast-title";
+    titleEl.textContent = title;
+    const bodyEl = document.createElement("div");
+    bodyEl.className = "toast-body";
+    bodyEl.textContent = body;
+    toast.appendChild(titleEl);
+    toast.appendChild(bodyEl);
+    toastContainer.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add("toast-out");
+      setTimeout(() => toast.remove(), 320);
+    }, durationMs);
+  }
+
+  // --- Due-reminder polling: the web server has no background thread of its own (unlike
+  // the CLI/voice ReminderChecker), so the browser polls for anything that's come due and
+  // surfaces it as a toast + spoken alert + chime. ---
+  async function checkDueReminders() {
+    try {
+      const response = await fetch("/api/due_reminders");
+      const data = await response.json();
+      for (const reminder of data.due || []) {
+        showToast("Reminder", reminder.text);
+        playTone(880, 0.15, "triangle", 0.05);
+        speak(`Reminder, ${honorific}: ${reminder.text}`);
+      }
+      if ((data.due || []).length) refreshReminders();
+    } catch {
+      /* transient failure -- next poll will catch up */
+    }
+  }
+
+  // --- Boot sequence: skippable one-time overlay ---
+  function runBootSequence(onComplete) {
+    const overlay = document.getElementById("boot-overlay");
+    const linesEl = document.getElementById("boot-lines");
+    const barFill = document.getElementById("boot-bar-fill");
+    const lines = [
+      "Initializing J.A.R.V.I.S. core...",
+      "Loading tool registry...",
+      "Establishing link to Ollama...",
+      "Calibrating voice systems...",
+      "All systems nominal.",
+    ];
+    let finished = false;
+    const timers = [];
+
+    function finish() {
+      if (finished) return;
+      finished = true;
+      timers.forEach(clearTimeout);
+      overlay.classList.add("hidden");
+      setTimeout(() => overlay.remove(), 550);
+      onComplete();
+    }
+
+    lines.forEach((text, i) => {
+      timers.push(
+        setTimeout(() => {
+          const line = document.createElement("div");
+          line.className = "boot-line";
+          line.textContent = text;
+          linesEl.appendChild(line);
+          barFill.style.width = `${Math.round(((i + 1) / lines.length) * 100)}%`;
+          if (i === lines.length - 1) {
+            line.classList.add("done");
+            timers.push(setTimeout(finish, 500));
+          }
+        }, i * 240)
+      );
+    });
+
+    overlay.addEventListener("click", finish, { once: true });
+  }
+
   setCoreState("idle");
   tickClock();
   drawTickRing();
@@ -581,9 +734,12 @@
   setInterval(refreshReminders, 20000);
   setInterval(refreshSystemStats, 2000);
   setInterval(requestWeather, 900000);
+  setInterval(checkDueReminders, 15000);
 
-  refreshStatus().then(() => {
-    appendEntry("Jarvis", `${timeBasedGreeting()}, ${honorific}. All systems are online and standing by.`);
+  runBootSequence(() => {
+    refreshStatus().then(() => {
+      appendEntryTyped(`${timeBasedGreeting()}, ${honorific}. All systems are online and standing by.`);
+    });
   });
   setInterval(refreshStatus, 15000);
 })();
