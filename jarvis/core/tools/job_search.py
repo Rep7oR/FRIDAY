@@ -144,4 +144,11 @@ class NewJobPostingsTool(Tool):
                 "to see what's new."
             )
 
+        if not new_jobs:
+            return (
+                f"No new postings for '{query}' since your last check "
+                f"({len(candidates)} matching postings currently, none of them new). "
+                "This is a normal result, not an error -- nothing has changed since last time."
+            )
+
         return format_postings(query, new_jobs, heading=f"New job postings for '{query}':")
