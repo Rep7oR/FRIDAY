@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Serves the viewer/ folder and a POST /chat endpoint backed by the Anthropic API.
+"""Serves the viewer/ folder and a POST /chat endpoint backed by an LLM.
 
 Run: python3 server.py
 Then open http://127.0.0.1:4700 in Chrome.
 
-config.json (project root, NEVER inside viewer/) holds the API key and model.
+config.json (project root, NEVER inside viewer/) holds the provider/key/model.
 It is not served to the browser — this handler only ever serves files under
 viewer/, and /chat only ever returns the answer text + note indexes, never
-the key.
+the key. If config.json doesn't exist yet, one is created automatically with
+"provider": "pollinations" (a free, no-signup text API) so /chat works with
+zero setup; switch "provider" to "anthropic" and paste a real api_key to use
+Claude instead.
 """
 import http.server
 import json
@@ -26,8 +29,16 @@ GRAPH_DATA_PATH = os.path.join(VIEWER_DIR, "graph-data.js")
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
+POLLINATIONS_API_URL = "https://text.pollinations.ai/openai"
 TOP_N_NOTES = 6
 MAX_HISTORY_TURNS = 6  # user+assistant pairs kept per session
+
+DEFAULT_CONFIG = {
+    "provider": "pollinations",
+    "api_key": "PUT-YOUR-KEY-HERE",
+    "model": "claude-opus-4-8",
+    "free_model": "openai",
+}
 
 WORD_RE = re.compile(r"[a-z0-9']+")
 
@@ -36,8 +47,17 @@ SESSIONS = {}
 
 
 def load_config():
+    if not os.path.isfile(CONFIG_PATH):
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(DEFAULT_CONFIG, f, indent=2)
+        print(f"No config.json found — created one at {CONFIG_PATH} using the free provider.")
+        return dict(DEFAULT_CONFIG)
+
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+        config = json.load(f)
+    for key, value in DEFAULT_CONFIG.items():
+        config.setdefault(key, value)
+    return config
 
 
 def load_graph():
@@ -156,6 +176,58 @@ def call_anthropic(config, system_prompt, history, question):
     return answer, None
 
 
+def call_pollinations(config, system_prompt, history, question):
+    messages = (
+        [{"role": "system", "content": system_prompt}]
+        + list(history)
+        + [{"role": "user", "content": question}]
+    )
+    payload = json.dumps(
+        {
+            "model": config.get("free_model", "openai"),
+            "messages": messages,
+        }
+    ).encode("utf-8")
+
+    req = urllib.request.Request(
+        POLLINATIONS_API_URL,
+        data=payload,
+        method="POST",
+        headers={"content-type": "application/json"},
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        return None, f"Pollinations API error {e.code}: {detail[:300]}"
+    except urllib.error.URLError as e:
+        return None, f"Could not reach Pollinations API: {e.reason}"
+    except TimeoutError:
+        return None, "Pollinations API timed out — try again."
+
+    try:
+        answer = data["choices"][0]["message"]["content"].strip()
+    except (KeyError, IndexError, TypeError):
+        answer = ""
+
+    if not answer:
+        return None, "Pollinations API returned no answer text."
+
+    return answer, None
+
+
+def call_llm(config, system_prompt, history, question):
+    provider = config.get("provider", "pollinations")
+    api_key = config.get("api_key", "")
+
+    if provider == "anthropic" and api_key and api_key != "PUT-YOUR-KEY-HERE":
+        return call_anthropic(config, system_prompt, history, question)
+
+    return call_pollinations(config, system_prompt, history, question)
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=VIEWER_DIR, **kwargs)
@@ -199,7 +271,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         top_notes = score_notes(question, nodes, note_bodies)
         system_prompt = build_system_prompt(top_notes, note_bodies)
 
-        answer, error = call_anthropic(config, system_prompt, history, question)
+        answer, error = call_llm(config, system_prompt, history, question)
 
         if error:
             response_payload = {"answer": error, "nodes": []}
@@ -227,12 +299,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 def main():
     if not os.path.isdir(VIEWER_DIR):
         raise SystemExit(f"viewer/ folder not found at {VIEWER_DIR} — run build.py first.")
-    if not os.path.isfile(CONFIG_PATH):
-        raise SystemExit(f"config.json not found at {CONFIG_PATH}.")
+
+    config = load_config()
 
     with socketserver.TCPServer(("127.0.0.1", PORT), Handler) as httpd:
         print(f"Serving {VIEWER_DIR} at http://127.0.0.1:{PORT}")
-        print("POST /chat is live (needs a real key in config.json).")
+        print(f"POST /chat is live using provider={config.get('provider')!r}.")
         print("Press Ctrl+C to stop.")
         try:
             httpd.serve_forever()
