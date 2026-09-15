@@ -387,6 +387,19 @@
       return { neighborIds, links };
     }
 
+    function internalNode(nodeId) {
+      return Graph.graphData().nodes.find((n) => n.id === nodeId);
+    }
+
+    function flyCameraTo(node, distance = 90) {
+      const distRatio = 1 + distance / Math.hypot(node.x || 1, node.y || 1, node.z || 1);
+      Graph.cameraPosition(
+        { x: (node.x || 0.1) * distRatio, y: (node.y || 0.1) * distRatio, z: (node.z || 0.1) * distRatio },
+        node,
+        1000
+      );
+    }
+
     function handleNodeClick(node) {
       lastInteraction = Date.now();
       const { neighborIds, links } = getNeighbors(node.id);
@@ -395,15 +408,45 @@
       neighborIds.forEach((id) => highlightNodes.add(id));
       links.forEach((l) => highlightLinks.add(l));
 
-      const distance = 90;
-      const distRatio = 1 + distance / Math.hypot(node.x || 1, node.y || 1, node.z || 1);
-      Graph.cameraPosition(
-        { x: (node.x || 0.1) * distRatio, y: (node.y || 0.1) * distRatio, z: (node.z || 0.1) * distRatio },
-        node,
-        1000
-      );
-
+      flyCameraTo(node);
       openPanel(node);
+      Graph.refresh();
+    }
+
+    // Prompt 4 — fly-to-source: the camera proves where a /chat answer came
+    // from. A single/small source set flies to (and highlights the neighbors
+    // of) the top note; 4+ sources light up the whole cluster instead.
+    function revealAnswerSources(nodeIds) {
+      lastInteraction = Date.now();
+      if (!nodeIds || nodeIds.length === 0) return;
+
+      highlightNodes.clear();
+      highlightLinks.clear();
+
+      if (nodeIds.length >= 4) {
+        nodeIds.forEach((id) => highlightNodes.add(id));
+        GRAPH.links.forEach((l) => {
+          const s = typeof l.source === "object" ? l.source.id : l.source;
+          const t = typeof l.target === "object" ? l.target.id : l.target;
+          if (highlightNodes.has(s) && highlightNodes.has(t)) highlightLinks.add(l);
+        });
+        Graph.zoomToFit(1000, 120, (n) => highlightNodes.has(n.id));
+
+        const topNode = internalNode(nodeIds[0]);
+        if (topNode) openPanel(topNode);
+      } else {
+        const topId = nodeIds[0];
+        const { neighborIds, links } = getNeighbors(topId);
+        neighborIds.forEach((id) => highlightNodes.add(id));
+        links.forEach((l) => highlightLinks.add(l));
+
+        const topNode = internalNode(topId);
+        if (topNode) {
+          flyCameraTo(topNode);
+          openPanel(topNode);
+        }
+      }
+
       Graph.refresh();
     }
 
@@ -499,6 +542,7 @@
         const answer = data.answer || "(no answer)";
         showAnswer(answer);
         speak(answer);
+        revealAnswerSources(data.nodes);
         setStatus("");
         return data;
       } catch (err) {
