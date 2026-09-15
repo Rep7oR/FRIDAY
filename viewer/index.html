@@ -124,6 +124,79 @@
     border-radius: 50%;
     box-shadow: 0 0 8px currentColor;
   }
+
+  #chat-dock {
+    position: absolute;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(640px, calc(100vw - 48px));
+    z-index: 8;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+  }
+  #answer-box {
+    display: none;
+    background: rgba(6, 14, 26, 0.85);
+    border: 1px solid rgba(100, 170, 255, 0.3);
+    border-radius: 14px;
+    padding: 14px 18px;
+    color: #e4eefc;
+    font-size: 14px;
+    line-height: 1.55;
+    max-height: 180px;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  }
+  #answer-box.visible {
+    display: block;
+  }
+  #chat-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(8, 16, 30, 0.85);
+    border: 1px solid rgba(100, 170, 255, 0.35);
+    border-radius: 999px;
+    padding: 6px 8px 6px 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(6px);
+  }
+  #chat-input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: #eaf2ff;
+    font-size: 14px;
+    padding: 8px 0;
+  }
+  #chat-input::placeholder {
+    color: #5d7ea6;
+  }
+  #chat-send {
+    background: linear-gradient(135deg, #4fd1ff, #7f9fff);
+    border: none;
+    color: #051018;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 9px 18px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  #chat-send:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  #chat-status {
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #7fa7d8;
+    min-height: 14px;
+  }
 </style>
 </head>
 <body>
@@ -142,6 +215,15 @@
     <div class="group-tag" id="panel-group">—</div>
     <h2 id="panel-title">—</h2>
     <div class="excerpt" id="panel-excerpt">—</div>
+  </div>
+
+  <div id="chat-dock">
+    <div id="answer-box"></div>
+    <div id="chat-status"></div>
+    <form id="chat-form">
+      <input id="chat-input" type="text" autocomplete="off" placeholder="Ask something about your notes…" />
+      <button id="chat-send" type="submit">Ask</button>
+    </form>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
@@ -308,6 +390,54 @@
     window.__jarvisGraph = Graph; // exposed for later prompts (chat -> fly-to-source, remember, etc.)
     window.__jarvisGetNeighbors = getNeighbors;
     window.__jarvisHandleNodeClick = handleNodeClick;
+
+    // ---------- chat ----------
+    const chatForm = document.getElementById("chat-form");
+    const chatInput = document.getElementById("chat-input");
+    const chatSend = document.getElementById("chat-send");
+    const chatStatus = document.getElementById("chat-status");
+    const answerBox = document.getElementById("answer-box");
+
+    function setStatus(text) {
+      chatStatus.textContent = text;
+    }
+
+    function showAnswer(text) {
+      answerBox.textContent = text;
+      answerBox.classList.add("visible");
+    }
+
+    async function askJarvis(question) {
+      chatSend.disabled = true;
+      setStatus("● thinking…");
+      try {
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ message: question }),
+        });
+        const data = await res.json();
+        showAnswer(data.answer || "(no answer)");
+        setStatus("");
+        return data;
+      } catch (err) {
+        showAnswer("Couldn't reach the server. Is server.py running?");
+        setStatus("");
+      } finally {
+        chatSend.disabled = false;
+      }
+    }
+
+    chatForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const question = chatInput.value.trim();
+      if (!question) return;
+      chatInput.value = "";
+      askJarvis(question);
+    });
+
+    window.__jarvisAsk = askJarvis;
   </script>
 </body>
 </html>

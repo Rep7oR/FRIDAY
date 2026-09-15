@@ -1,28 +1,238 @@
 #!/usr/bin/env python3
-"""Tiny stdlib web server that serves ONLY the viewer/ folder.
+"""Serves the viewer/ folder and a POST /chat endpoint backed by the Anthropic API.
 
 Run: python3 server.py
 Then open http://127.0.0.1:4700 in Chrome.
+
+config.json (project root, NEVER inside viewer/) holds the API key and model.
+It is not served to the browser — this handler only ever serves files under
+viewer/, and /chat only ever returns the answer text + note indexes, never
+the key.
 """
 import http.server
+import json
 import os
+import re
+import secrets
 import socketserver
+import urllib.error
+import urllib.request
 
 PORT = 4700
-VIEWER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "viewer")
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+VIEWER_DIR = os.path.join(ROOT_DIR, "viewer")
+CONFIG_PATH = os.path.join(ROOT_DIR, "config.json")
+GRAPH_DATA_PATH = os.path.join(VIEWER_DIR, "graph-data.js")
+
+ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_VERSION = "2023-06-01"
+TOP_N_NOTES = 6
+MAX_HISTORY_TURNS = 6  # user+assistant pairs kept per session
+
+WORD_RE = re.compile(r"[a-z0-9']+")
+
+# session_id -> list of {"role": "user"|"assistant", "content": str}
+SESSIONS = {}
 
 
-class ViewerHandler(http.server.SimpleHTTPRequestHandler):
+def load_config():
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def load_graph():
+    with open(GRAPH_DATA_PATH, "r", encoding="utf-8") as f:
+        raw = f.read()
+    raw = raw.strip()
+    prefix = "const GRAPH ="
+    if raw.startswith(prefix):
+        raw = raw[len(prefix):]
+    raw = raw.rstrip(";").strip()
+    return json.loads(raw)
+
+
+def tokenize(text):
+    return WORD_RE.findall(text.lower())
+
+
+def score_notes(question, nodes, note_bodies):
+    q_words = set(tokenize(question))
+    if not q_words:
+        return []
+
+    scored = []
+    for node in nodes:
+        title_words = set(tokenize(node["label"]))
+        body_words = set(tokenize(note_bodies.get(node["id"], node.get("excerpt", ""))))
+
+        score = 0
+        for w in q_words:
+            if w in title_words:
+                score += 3
+            if w in body_words:
+                score += 1
+
+        scored.append((score, node))
+
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return scored[:TOP_N_NOTES]
+
+
+def read_note_bodies(nodes):
+    bodies = {}
+    for node in nodes:
+        path = node.get("path")
+        if not path or not os.path.isfile(path):
+            bodies[node["id"]] = node.get("excerpt", "")
+            continue
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                bodies[node["id"]] = f.read()
+        except OSError:
+            bodies[node["id"]] = node.get("excerpt", "")
+    return bodies
+
+
+def build_system_prompt(top_notes, note_bodies):
+    sections = []
+    for _score, node in top_notes:
+        body = note_bodies.get(node["id"], node.get("excerpt", ""))
+        sections.append(f"### {node['label']}\n{body}")
+    notes_blob = "\n\n".join(sections) if sections else "(no notes matched)"
+
+    return (
+        "You are answering questions using ONLY the notes provided below. "
+        "Answer in 2-3 sentences. If the notes don't cover the question, "
+        "say so plainly instead of guessing or using outside knowledge.\n\n"
+        f"NOTES:\n\n{notes_blob}"
+    )
+
+
+def call_anthropic(config, system_prompt, history, question):
+    api_key = config.get("api_key", "")
+    if not api_key or api_key == "PUT-YOUR-KEY-HERE":
+        return None, "model not configured — paste your API key into config.json"
+
+    messages = list(history) + [{"role": "user", "content": question}]
+    payload = json.dumps(
+        {
+            "model": config.get("model", "claude-opus-4-8"),
+            "max_tokens": 400,
+            "system": system_prompt,
+            "messages": messages,
+        }
+    ).encode("utf-8")
+
+    req = urllib.request.Request(
+        ANTHROPIC_API_URL,
+        data=payload,
+        method="POST",
+        headers={
+            "content-type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": ANTHROPIC_VERSION,
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        return None, f"Anthropic API error {e.code}: {detail[:300]}"
+    except urllib.error.URLError as e:
+        return None, f"Could not reach Anthropic API: {e.reason}"
+
+    try:
+        answer = "".join(
+            block.get("text", "") for block in data.get("content", []) if block.get("type") == "text"
+        ).strip()
+    except (KeyError, TypeError):
+        answer = ""
+
+    if not answer:
+        return None, "Anthropic API returned no answer text."
+
+    return answer, None
+
+
+class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=VIEWER_DIR, **kwargs)
+
+    def log_message(self, fmt, *args):
+        print(f"{self.address_string()} - {fmt % args}")
+
+    def _get_session_id(self):
+        cookie = self.headers.get("Cookie", "")
+        match = re.search(r"jarvis_session=([a-f0-9]+)", cookie)
+        if match:
+            return match.group(1), False
+        return secrets.token_hex(16), True
+
+    def do_POST(self):
+        if self.path != "/chat":
+            self.send_error(404, "Not found")
+            return
+
+        length = int(self.headers.get("Content-Length", 0))
+        raw_body = self.rfile.read(length) if length else b"{}"
+        try:
+            body = json.loads(raw_body.decode("utf-8"))
+        except json.JSONDecodeError:
+            self.send_error(400, "Invalid JSON")
+            return
+
+        question = (body.get("message") or "").strip()
+        if not question:
+            self.send_error(400, "Missing 'message'")
+            return
+
+        session_id, is_new = self._get_session_id()
+        history = SESSIONS.setdefault(session_id, [])
+
+        config = load_config()
+        graph = load_graph()
+        nodes = graph["nodes"]
+        note_bodies = read_note_bodies(nodes)
+
+        top_notes = score_notes(question, nodes, note_bodies)
+        system_prompt = build_system_prompt(top_notes, note_bodies)
+
+        answer, error = call_anthropic(config, system_prompt, history, question)
+
+        if error:
+            response_payload = {"answer": error, "nodes": []}
+        else:
+            history.append({"role": "user", "content": question})
+            history.append({"role": "assistant", "content": answer})
+            del history[: max(0, len(history) - MAX_HISTORY_TURNS * 2)]
+
+            response_payload = {
+                "answer": answer,
+                "nodes": [node["id"] for _score, node in top_notes if _score > 0],
+            }
+
+        body_bytes = json.dumps(response_payload).encode("utf-8")
+
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body_bytes)))
+        if is_new:
+            self.send_header("Set-Cookie", f"jarvis_session={session_id}; Path=/; HttpOnly")
+        self.end_headers()
+        self.wfile.write(body_bytes)
 
 
 def main():
     if not os.path.isdir(VIEWER_DIR):
         raise SystemExit(f"viewer/ folder not found at {VIEWER_DIR} — run build.py first.")
+    if not os.path.isfile(CONFIG_PATH):
+        raise SystemExit(f"config.json not found at {CONFIG_PATH}.")
 
-    with socketserver.TCPServer(("127.0.0.1", PORT), ViewerHandler) as httpd:
+    with socketserver.TCPServer(("127.0.0.1", PORT), Handler) as httpd:
         print(f"Serving {VIEWER_DIR} at http://127.0.0.1:{PORT}")
+        print("POST /chat is live (needs a real key in config.json).")
         print("Press Ctrl+C to stop.")
         try:
             httpd.serve_forever()
