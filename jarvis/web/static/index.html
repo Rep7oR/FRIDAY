@@ -28,30 +28,63 @@
 <main class="layout">
   <aside class="panel panel-left">
     <div class="widget">
-      <div class="widget-title">CPU</div>
-      <div class="widget-value" id="cpu-value">--%</div>
-      <canvas class="sparkline" id="cpu-spark" width="220" height="44"></canvas>
+      <div class="widget-gauge-row">
+        <div class="gauge-item">
+          <div class="widget-title">CPU</div>
+          <div class="gauge">
+            <svg viewBox="0 0 100 100">
+              <circle class="gauge-track" cx="50" cy="50" r="42"></circle>
+              <circle class="gauge-fill" id="cpu-gauge" cx="50" cy="50" r="42"></circle>
+            </svg>
+            <div class="gauge-label" id="cpu-value">--%</div>
+          </div>
+        </div>
+        <div class="gauge-item">
+          <div class="widget-title">MEM</div>
+          <div class="gauge">
+            <svg viewBox="0 0 100 100">
+              <circle class="gauge-track" cx="50" cy="50" r="42"></circle>
+              <circle class="gauge-fill" id="mem-gauge" cx="50" cy="50" r="42"></circle>
+            </svg>
+            <div class="gauge-label" id="mem-value">--%</div>
+          </div>
+        </div>
+      </div>
+      <div class="widget-sub widget-sub-center" id="mem-sub">-- / -- GB</div>
     </div>
-    <div class="widget">
-      <div class="widget-title">Memory</div>
-      <div class="widget-value" id="mem-value">--%</div>
-      <div class="widget-sub" id="mem-sub">-- / -- GB</div>
-      <canvas class="sparkline" id="mem-spark" width="220" height="44"></canvas>
-    </div>
+
     <div class="widget">
       <div class="widget-title">Disk</div>
-      <div class="widget-value" id="disk-value">--%</div>
-      <div class="widget-sub" id="disk-sub">-- / -- GB</div>
-      <div class="bar-gauge"><div class="bar-gauge-fill" id="disk-gauge"></div></div>
+      <div class="gauge gauge-lg">
+        <svg viewBox="0 0 100 100">
+          <circle class="gauge-track" cx="50" cy="50" r="42"></circle>
+          <circle class="gauge-fill gauge-fill-alt" id="disk-gauge" cx="50" cy="50" r="42"></circle>
+        </svg>
+        <div class="gauge-label" id="disk-value">--%</div>
+      </div>
+      <div class="widget-sub widget-sub-center" id="disk-sub">-- / -- GB</div>
     </div>
+
     <div class="widget">
       <div class="widget-title">Network</div>
       <div class="widget-sub" id="net-sub">&uarr; -- KB/s &nbsp; &darr; -- KB/s</div>
       <canvas class="sparkline" id="net-spark" width="220" height="44"></canvas>
+      <div class="widget-sub" id="ip-sub">IP: --</div>
     </div>
+
     <div class="widget">
       <div class="widget-title">Uptime</div>
       <div class="widget-value widget-value-sm" id="uptime-value">--</div>
+    </div>
+
+    <div class="widget widget-quickactions">
+      <div class="widget-title">Quick Actions</div>
+      <div class="quick-actions">
+        <button class="qa-btn" data-prompt="Give me a quick briefing: weather and anything notable in the news.">Briefing</button>
+        <button class="qa-btn" data-prefill="search the web for ">Web Search</button>
+        <button class="qa-btn" data-prefill="remind me to ">New Reminder</button>
+        <button class="qa-btn" data-prompt="List my current reminders.">Reminders</button>
+      </div>
     </div>
   </aside>
 

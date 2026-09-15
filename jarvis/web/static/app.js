@@ -126,6 +126,20 @@
     if (e.key === "Enter") sendMessage(textInput.value);
   });
 
+  // Quick-action buttons: either send a canned prompt immediately, or pre-fill the input
+  // and hand focus over so the user finishes the request themselves.
+  document.querySelectorAll(".qa-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.prompt) {
+        sendMessage(btn.dataset.prompt);
+      } else if (btn.dataset.prefill) {
+        textInput.value = btn.dataset.prefill;
+        textInput.focus();
+        textInput.setSelectionRange(textInput.value.length, textInput.value.length);
+      }
+    });
+  });
+
   voiceToggle.addEventListener("click", () => {
     voiceOutputEnabled = !voiceOutputEnabled;
     voiceToggle.classList.toggle("toggle-on", voiceOutputEnabled);
@@ -328,22 +342,31 @@
 
   // --- System stats (real CPU/RAM/disk/network from the machine running the server) ---
   const cpuValue = document.getElementById("cpu-value");
-  const cpuSpark = document.getElementById("cpu-spark");
+  const cpuGauge = document.getElementById("cpu-gauge");
   const memValue = document.getElementById("mem-value");
+  const memGauge = document.getElementById("mem-gauge");
   const memSub = document.getElementById("mem-sub");
-  const memSpark = document.getElementById("mem-spark");
   const diskValue = document.getElementById("disk-value");
-  const diskSub = document.getElementById("disk-sub");
   const diskGauge = document.getElementById("disk-gauge");
+  const diskSub = document.getElementById("disk-sub");
   const netSub = document.getElementById("net-sub");
   const netSpark = document.getElementById("net-spark");
+  const ipSub = document.getElementById("ip-sub");
   const uptimeValue = document.getElementById("uptime-value");
   const operatorEl = document.getElementById("operator");
 
   const HISTORY_LEN = 40;
-  const cpuHistory = [];
-  const memHistory = [];
   const netHistory = [];
+
+  // circumference of the gauge circles (r=42): 2 * pi * 42
+  const GAUGE_CIRCUMFERENCE = 2 * Math.PI * 42;
+  function setGauge(circle, percent) {
+    if (!circle) return;
+    const clamped = Math.max(0, Math.min(percent, 100));
+    const offset = GAUGE_CIRCUMFERENCE * (1 - clamped / 100);
+    circle.style.strokeDasharray = String(GAUGE_CIRCUMFERENCE);
+    circle.style.strokeDashoffset = String(offset);
+  }
 
   function pushHistory(arr, value) {
     arr.push(value);
@@ -391,21 +414,20 @@
       const data = await response.json();
 
       cpuValue.textContent = `${Math.round(data.cpu_percent)}%`;
-      pushHistory(cpuHistory, data.cpu_percent);
-      drawSparkline(cpuSpark, cpuHistory, 100);
+      setGauge(cpuGauge, data.cpu_percent);
 
       memValue.textContent = `${Math.round(data.mem_percent)}%`;
       memSub.textContent = `${data.mem_used_gb} / ${data.mem_total_gb} GB`;
-      pushHistory(memHistory, data.mem_percent);
-      drawSparkline(memSpark, memHistory, 100);
+      setGauge(memGauge, data.mem_percent);
 
       diskValue.textContent = `${Math.round(data.disk_percent)}%`;
       diskSub.textContent = `${data.disk_used_gb} / ${data.disk_total_gb} GB`;
-      diskGauge.style.width = `${data.disk_percent}%`;
+      setGauge(diskGauge, data.disk_percent);
 
       netSub.innerHTML = `&uarr; ${data.net_sent_kbps} KB/s &nbsp; &darr; ${data.net_recv_kbps} KB/s`;
       pushHistory(netHistory, data.net_recv_kbps);
       drawSparkline(netSpark, netHistory);
+      ipSub.textContent = `IP: ${data.local_ip}`;
 
       uptimeValue.textContent = formatUptime(data.uptime_seconds);
       operatorEl.textContent = `operator: ${data.username}@${data.hostname}`;

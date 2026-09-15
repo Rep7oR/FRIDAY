@@ -5,6 +5,7 @@
   --accent-dim: #0f7d94;
   --accent-glow: rgba(52, 226, 255, 0.55);
   --warn: #ff5d5d;
+  --warn-accent: #ff9d4d;
   --text: #d6f3ff;
   --text-dim: #6f95a8;
   --border: rgba(52, 226, 255, 0.25);
@@ -145,6 +146,55 @@ html, body {
   box-shadow: 0 0 6px var(--accent-glow);
   transition: width 0.4s ease-out;
 }
+
+.widget-gauge-row { display: flex; justify-content: space-around; gap: 8px; }
+.gauge-item { display: flex; flex-direction: column; align-items: center; }
+.gauge-item .widget-title { text-align: center; }
+.widget-sub-center { text-align: center; }
+
+.gauge { position: relative; width: 76px; height: 76px; margin: 2px auto 0; }
+.gauge-lg { width: 100px; height: 100px; }
+.gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.gauge-track { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 9; }
+.gauge-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-dasharray: 264;
+  stroke-dashoffset: 264;
+  filter: drop-shadow(0 0 4px var(--accent-glow));
+  transition: stroke-dashoffset 0.5s ease-out;
+}
+.gauge-fill-alt { stroke: var(--warn-accent); filter: drop-shadow(0 0 4px rgba(255,157,77,0.6)); }
+.gauge-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 15px;
+  color: var(--accent);
+  text-shadow: 0 0 8px var(--accent-glow);
+}
+
+.quick-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.qa-btn {
+  flex: 1 1 calc(50% - 6px);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  background: rgba(52,226,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 4px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+.qa-btn:hover { background: rgba(52,226,255,0.15); border-color: var(--accent); box-shadow: 0 0 8px var(--accent-glow); color: var(--accent); }
 
 .widget-weather .weather-body { font-size: 12px; line-height: 1.8; color: var(--text); }
 .widget-weather .weather-temp {

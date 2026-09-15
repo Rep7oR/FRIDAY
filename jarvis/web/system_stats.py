@@ -10,6 +10,25 @@ import psutil
 
 _start_time = time.monotonic()
 _last_net: tuple[float, int, int] | None = None  # (timestamp, bytes_sent, bytes_recv)
+_cached_local_ip: str | None = None
+
+
+def _local_ip() -> str:
+    """The machine's outbound-facing LAN IP. Opens a UDP 'connection' to a public address
+    without sending any packets -- a standard trick to ask the OS which local interface/IP
+    it would route through, purely local, no network traffic actually happens."""
+    global _cached_local_ip
+    if _cached_local_ip is not None:
+        return _cached_local_ip
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))
+        _cached_local_ip = sock.getsockname()[0]
+    except OSError:
+        _cached_local_ip = "127.0.0.1"
+    finally:
+        sock.close()
+    return _cached_local_ip
 
 
 def _network_throughput_kbps() -> tuple[float, float]:
@@ -45,4 +64,5 @@ def get_system_stats() -> dict:
         "uptime_seconds": round(time.monotonic() - _start_time),
         "hostname": socket.gethostname(),
         "username": getpass.getuser(),
+        "local_ip": _local_ip(),
     }
