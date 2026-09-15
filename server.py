@@ -8,16 +8,20 @@ config.json (project root, NEVER inside viewer/) holds the provider/key/model.
 It is not served to the browser — this handler only ever serves files under
 viewer/, and /chat only ever returns the answer text + note indexes, never
 the key. If config.json doesn't exist yet, one is created automatically with
-"provider": "pollinations" (a free, no-signup text API) so /chat works with
-zero setup; switch "provider" to "anthropic" and paste a real api_key to use
-Claude instead.
+"provider": "claude_cli", which shells out to the `claude` CLI so /chat runs
+on your existing Claude Code subscription with zero extra setup and no
+external API key. Other providers: "pollinations" (a free, no-key text API —
+its shared anonymous quota can run dry) or "anthropic" (paste a real
+api_key to call the Messages API directly).
 """
 import http.server
 import json
 import os
 import re
 import secrets
+import shutil
 import socketserver
+import subprocess
 import urllib.error
 import urllib.request
 
@@ -34,7 +38,7 @@ TOP_N_NOTES = 6
 MAX_HISTORY_TURNS = 6  # user+assistant pairs kept per session
 
 DEFAULT_CONFIG = {
-    "provider": "pollinations",
+    "provider": "claude_cli",
     "api_key": "PUT-YOUR-KEY-HERE",
     "model": "claude-opus-4-8",
     "free_model": "openai",
@@ -50,7 +54,7 @@ def load_config():
     if not os.path.isfile(CONFIG_PATH):
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(DEFAULT_CONFIG, f, indent=2)
-        print(f"No config.json found — created one at {CONFIG_PATH} using the free provider.")
+        print(f"No config.json found — created one at {CONFIG_PATH} using provider={DEFAULT_CONFIG['provider']!r}.")
         return dict(DEFAULT_CONFIG)
 
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -227,14 +231,63 @@ def call_pollinations(config, system_prompt, history, question):
     return answer, None
 
 
+def call_claude_cli(config, system_prompt, history, question):
+    claude_path = shutil.which("claude")
+    if not claude_path:
+        return None, (
+            "'claude' CLI not found on PATH. Install Claude Code, or switch "
+            "config.json's \"provider\" to \"pollinations\" or \"anthropic\"."
+        )
+
+    transcript = [f"SYSTEM INSTRUCTIONS:\n{system_prompt}", ""]
+    for turn in history:
+        speaker = "User" if turn["role"] == "user" else "Assistant"
+        transcript.append(f"{speaker}: {turn['content']}")
+    transcript.append(f"User: {question}")
+    full_prompt = "\n".join(transcript)
+
+    try:
+        # On Windows, `claude` is usually a .cmd shim that CreateProcess
+        # can't launch directly without going through the shell; on POSIX
+        # the resolved path runs fine without one. Either way the prompt
+        # goes in via stdin, so there's no command-line quoting to worry
+        # about.
+        use_shell = os.name == "nt"
+        result = subprocess.run(
+            "claude -p" if use_shell else [claude_path, "-p"],
+            input=full_prompt,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            shell=use_shell,
+        )
+    except subprocess.TimeoutExpired:
+        return None, "claude -p timed out after 60s."
+    except OSError as e:
+        return None, f"Failed to run claude CLI: {e}"
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        return None, f"claude -p failed: {detail[:300]}"
+
+    answer = result.stdout.strip()
+    if not answer:
+        return None, "claude -p returned no output."
+
+    return answer, None
+
+
 def call_llm(config, system_prompt, history, question):
-    provider = config.get("provider", "pollinations")
+    provider = config.get("provider", "claude_cli")
     api_key = config.get("api_key", "")
 
     if provider == "anthropic" and api_key and api_key != "PUT-YOUR-KEY-HERE":
         return call_anthropic(config, system_prompt, history, question)
 
-    return call_pollinations(config, system_prompt, history, question)
+    if provider == "pollinations":
+        return call_pollinations(config, system_prompt, history, question)
+
+    return call_claude_cli(config, system_prompt, history, question)
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
