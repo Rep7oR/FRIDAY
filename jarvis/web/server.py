@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from jarvis import config
 from jarvis.core.agent import Agent
 from jarvis.core.tools.scheduler import ListRemindersTool
+from jarvis.web import system_stats, weather as weather_module
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -79,3 +80,16 @@ def status() -> dict:
         return {"ollama_reachable": True, "model_available": online, "model": config.MODEL_NAME}
     except Exception:
         return {"ollama_reachable": False, "model_available": False, "model": config.MODEL_NAME}
+
+
+@app.get("/api/system")
+def system() -> dict:
+    return system_stats.get_system_stats()
+
+
+@app.get("/api/weather")
+def weather(lat: float, lon: float) -> dict:
+    try:
+        return {"ok": True, **weather_module.get_weather(lat, lon)}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}

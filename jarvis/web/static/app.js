@@ -287,7 +287,164 @@
   }
 
   function tickClock() {
-    clockEl.textContent = new Date().toLocaleTimeString([], { hour12: false });
+    const now = new Date();
+    const timeText = now.toLocaleTimeString([], { hour12: false });
+    clockEl.textContent = timeText;
+    const bigClock = document.getElementById("big-clock");
+    const bigDate = document.getElementById("big-date");
+    if (bigClock) bigClock.textContent = timeText;
+    if (bigDate) {
+      bigDate.textContent = now.toLocaleDateString([], {
+        weekday: "short",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    }
+  }
+
+  // --- System stats (real CPU/RAM/disk/network from the machine running the server) ---
+  const cpuValue = document.getElementById("cpu-value");
+  const cpuSpark = document.getElementById("cpu-spark");
+  const memValue = document.getElementById("mem-value");
+  const memSub = document.getElementById("mem-sub");
+  const memSpark = document.getElementById("mem-spark");
+  const diskValue = document.getElementById("disk-value");
+  const diskSub = document.getElementById("disk-sub");
+  const diskGauge = document.getElementById("disk-gauge");
+  const netSub = document.getElementById("net-sub");
+  const netSpark = document.getElementById("net-spark");
+  const uptimeValue = document.getElementById("uptime-value");
+  const operatorEl = document.getElementById("operator");
+
+  const HISTORY_LEN = 40;
+  const cpuHistory = [];
+  const memHistory = [];
+  const netHistory = [];
+
+  function pushHistory(arr, value) {
+    arr.push(value);
+    if (arr.length > HISTORY_LEN) arr.shift();
+  }
+
+  function drawSparkline(canvas, values, maxHint) {
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    if (values.length < 2) return;
+    const max = Math.max(maxHint || 0, ...values, 1);
+    const step = w / (values.length - 1);
+    ctx.beginPath();
+    values.forEach((v, i) => {
+      const x = i * step;
+      const y = h - (v / max) * (h - 4) - 2;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = "#34e2ff";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(52, 226, 255, 0.12)";
+    ctx.fill();
+  }
+
+  function formatUptime(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+
+  async function refreshSystemStats() {
+    try {
+      const response = await fetch("/api/system");
+      const data = await response.json();
+
+      cpuValue.textContent = `${Math.round(data.cpu_percent)}%`;
+      pushHistory(cpuHistory, data.cpu_percent);
+      drawSparkline(cpuSpark, cpuHistory, 100);
+
+      memValue.textContent = `${Math.round(data.mem_percent)}%`;
+      memSub.textContent = `${data.mem_used_gb} / ${data.mem_total_gb} GB`;
+      pushHistory(memHistory, data.mem_percent);
+      drawSparkline(memSpark, memHistory, 100);
+
+      diskValue.textContent = `${Math.round(data.disk_percent)}%`;
+      diskSub.textContent = `${data.disk_used_gb} / ${data.disk_total_gb} GB`;
+      diskGauge.style.width = `${data.disk_percent}%`;
+
+      netSub.innerHTML = `&uarr; ${data.net_sent_kbps} KB/s &nbsp; &darr; ${data.net_recv_kbps} KB/s`;
+      pushHistory(netHistory, data.net_recv_kbps);
+      drawSparkline(netSpark, netHistory);
+
+      uptimeValue.textContent = formatUptime(data.uptime_seconds);
+      operatorEl.textContent = `operator: ${data.username}@${data.hostname}`;
+    } catch {
+      /* leave widgets showing last-known values on a transient failure */
+    }
+  }
+
+  // --- Weather (real current conditions for your location via Open-Meteo; browser supplies
+  // the coordinates through the Geolocation API, nothing is hardcoded or faked) ---
+  function requestWeather() {
+    const weatherBody = document.getElementById("weather-body");
+    if (!navigator.geolocation) {
+      weatherBody.textContent = "Geolocation not supported by this browser.";
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const response = await fetch(`/api/weather?lat=${latitude}&lon=${longitude}`);
+          const data = await response.json();
+          if (!data.ok) {
+            weatherBody.textContent = `Weather unavailable: ${data.error}`;
+            return;
+          }
+          weatherBody.innerHTML = `
+            <div class="weather-temp">${Math.round(data.temperature_c)}&deg;C</div>
+            <div class="weather-condition">${data.condition}</div>
+            <div>Humidity: ${data.humidity_percent}%</div>
+            <div>Wind: ${data.wind_kmh} km/h</div>
+          `;
+        } catch {
+          weatherBody.textContent = "Weather request failed.";
+        }
+      },
+      () => {
+        weatherBody.textContent = "Location permission denied -- enable it to show local weather.";
+      },
+      { timeout: 8000 }
+    );
+  }
+
+  // --- Tick-ring: radial tick marks drawn once around the core (purely decorative HUD chrome) ---
+  function drawTickRing() {
+    const svg = document.querySelector(".tick-ring");
+    if (!svg) return;
+    const ns = "http://www.w3.org/2000/svg";
+    const cx = 150;
+    const cy = 150;
+    const rOuter = 148;
+    for (let i = 0; i < 60; i++) {
+      const angle = (i / 60) * Math.PI * 2;
+      const isLong = i % 5 === 0;
+      const rInner = isLong ? 128 : 138;
+      const line = document.createElementNS(ns, "line");
+      line.setAttribute("x1", cx + rOuter * Math.cos(angle));
+      line.setAttribute("y1", cy + rOuter * Math.sin(angle));
+      line.setAttribute("x2", cx + rInner * Math.cos(angle));
+      line.setAttribute("y2", cy + rInner * Math.sin(angle));
+      svg.appendChild(line);
+    }
   }
 
   // --- Waveform: idle/speaking are decorative animation; listening is driven by real mic
@@ -373,9 +530,14 @@
   tickClock();
   refreshStatus();
   refreshReminders();
+  refreshSystemStats();
+  requestWeather();
+  drawTickRing();
   setInterval(tickClock, 1000);
   setInterval(refreshStatus, 15000);
   setInterval(refreshReminders, 20000);
+  setInterval(refreshSystemStats, 2000);
+  setInterval(requestWeather, 900000);
 
   appendEntry("Jarvis", "Systems online. How can I help?");
 })();

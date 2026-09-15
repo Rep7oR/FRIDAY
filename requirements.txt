@@ -8,6 +8,7 @@ duckduckgo_search>=6.0  # fallback for older pins; the tool tries `ddgs` first
 # Web UI (`python -m jarvis.web`) -- voice runs in the browser, no extra audio deps needed here
 fastapi>=0.110
 uvicorn[standard]>=0.29
+psutil>=5.9  # real CPU/RAM/disk/network stats for the HUD widgets
 
 # Voice (optional but needed for `python -m jarvis.main`)
 faster-whisper>=1.0

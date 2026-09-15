@@ -74,36 +74,98 @@ html, body {
   letter-spacing: 0.1em;
 }
 
+.operator {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  text-transform: lowercase;
+}
+
 .layout {
   display: grid;
-  grid-template-columns: 240px 1fr 280px;
+  grid-template-columns: 260px 1fr 300px;
   gap: 0;
   height: calc(100vh - 58px - 74px);
 }
 
-@media (max-width: 880px) {
-  .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; height: calc(100vh - 58px - 74px); }
-  .panel-left { order: 2; max-height: 140px; }
+@media (max-width: 980px) {
+  .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; height: calc(100vh - 58px - 74px); overflow-y: auto; }
+  .panel-left { order: 2; max-height: 220px; }
   .core-stage { order: 1; }
-  .panel-right { order: 3; max-height: 220px; }
+  .panel-right { order: 3; max-height: 320px; }
 }
 
 .panel {
-  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
   overflow-y: auto;
   background: var(--bg-panel);
   border-right: 1px solid var(--border);
 }
 .panel-right { border-right: none; border-left: 1px solid var(--border); }
 
-.panel h2 {
+.widget {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: rgba(52, 226, 255, 0.03);
+  flex-shrink: 0;
+}
+.widget-title {
   font-family: 'Orbitron', sans-serif;
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.25em;
   color: var(--accent-dim);
-  margin: 0 0 12px;
   text-transform: uppercase;
+  margin-bottom: 6px;
 }
+.widget-value {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 26px;
+  color: var(--accent);
+  text-shadow: 0 0 10px var(--accent-glow);
+  line-height: 1.1;
+}
+.widget-value-sm { font-size: 16px; }
+.widget-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.sparkline { display: block; width: 100%; height: 44px; margin-top: 6px; }
+
+.bar-gauge {
+  width: 100%; height: 6px; margin-top: 8px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.bar-gauge-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(to right, var(--accent-dim), var(--accent));
+  box-shadow: 0 0 6px var(--accent-glow);
+  transition: width 0.4s ease-out;
+}
+
+.widget-weather .weather-body { font-size: 12px; line-height: 1.8; color: var(--text); }
+.widget-weather .weather-temp {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 26px;
+  color: var(--accent);
+  text-shadow: 0 0 10px var(--accent-glow);
+}
+.widget-weather .weather-condition { color: var(--text-dim); }
+
+.widget-clock-big .big-clock {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 28px;
+  color: var(--accent);
+  text-shadow: 0 0 10px var(--accent-glow);
+  letter-spacing: 0.05em;
+}
+.widget-clock-big .big-date { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+.widget-reminders, .widget-log { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.widget-reminders .reminders-list, .widget-log .chat-log { overflow-y: auto; }
 
 .reminders-list { list-style: none; margin: 0; padding: 0; font-size: 12px; line-height: 1.7; }
 .reminders-list li { padding: 6px 0; border-bottom: 1px dashed rgba(52,226,255,0.12); color: var(--text); }
@@ -125,7 +187,31 @@ html, body {
   position: relative;
 }
 
-.core { position: relative; width: 280px; height: 280px; }
+.core { position: relative; width: 300px; height: 300px; }
+
+/* Radial tick marks drawn into this SVG by JS at load time. */
+.tick-ring {
+  position: absolute;
+  inset: -14px;
+  width: calc(100% + 28px);
+  height: calc(100% + 28px);
+  animation: spin 40s linear infinite;
+}
+.tick-ring line { stroke: var(--accent-dim); stroke-width: 1; opacity: 0.5; }
+
+.orbit { position: absolute; border-radius: 50%; }
+.orbit-1 { inset: 4px; animation: spin 6s linear infinite; }
+.orbit-2 { inset: 26px; animation: spin-reverse 8.5s linear infinite; }
+.orbit .orbit-dot {
+  position: absolute;
+  top: -2px; left: 50%;
+  width: 5px; height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px 2px var(--accent-glow);
+}
+.orbit-2 .orbit-dot { opacity: 0.6; }
 
 .ring {
   position: absolute;
