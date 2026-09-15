@@ -36,6 +36,7 @@ ANTHROPIC_VERSION = "2023-06-01"
 POLLINATIONS_API_URL = "https://text.pollinations.ai/openai"
 TOP_N_NOTES = 6
 MAX_HISTORY_TURNS = 6  # user+assistant pairs kept per session
+PROVIDERS = ("claude_cli", "pollinations", "anthropic")
 
 DEFAULT_CONFIG = {
     "provider": "claude_cli",
@@ -304,7 +305,27 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return match.group(1), False
         return secrets.token_hex(16), True
 
+    def _write_json(self, payload, status=200):
+        body_bytes = json.dumps(payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body_bytes)))
+        self.end_headers()
+        self.wfile.write(body_bytes)
+
+    def do_GET(self):
+        if self.path == "/provider":
+            config = load_config()
+            self._write_json(
+                {"provider": config.get("provider", "claude_cli"), "options": list(PROVIDERS)}
+            )
+            return
+        super().do_GET()
+
     def do_POST(self):
+        if self.path == "/provider":
+            self._handle_set_provider()
+            return
         if self.path != "/chat":
             self.send_error(404, "Not found")
             return
@@ -356,6 +377,31 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Set-Cookie", f"jarvis_session={session_id}; Path=/; HttpOnly")
         self.end_headers()
         self.wfile.write(body_bytes)
+
+    def _handle_set_provider(self):
+        length = int(self.headers.get("Content-Length", 0))
+        raw_body = self.rfile.read(length) if length else b"{}"
+        try:
+            body = json.loads(raw_body.decode("utf-8"))
+        except json.JSONDecodeError:
+            self.send_error(400, "Invalid JSON")
+            return
+
+        provider = body.get("provider")
+        if provider not in PROVIDERS:
+            self.send_error(400, f"Unknown provider {provider!r}; expected one of {PROVIDERS}")
+            return
+
+        # Only the provider field changes here -- api_key/model/free_model are never
+        # touched by this endpoint, so switching providers in the UI can't clobber a
+        # key you've already pasted in.
+        config = load_config()
+        config["provider"] = provider
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+
+        print(f"Provider switched to {provider!r}.")
+        self._write_json({"provider": provider})
 
 
 def main():

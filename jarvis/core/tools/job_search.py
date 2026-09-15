@@ -55,38 +55,8 @@ def format_postings(query: str, jobs: list[dict[str, Any]], heading: str | None 
     return "\n".join(lines)
 
 
-class JobSearchTool(Tool):
-    name = "search_jobs"
-    description = (
-        "Search current job postings by role/keyword (e.g. 'python developer', 'product "
-        "designer', 'data analyst'). Results are sourced from RemoteOK, so they skew "
-        "remote/tech roles."
-    )
-    parameters = {
-        "type": "object",
-        "properties": {
-            "query": {"type": "string", "description": "Job title, keyword, or tag to search for."},
-            "max_results": {
-                "type": "integer",
-                "description": "How many postings to return (default 5, max 15).",
-            },
-        },
-        "required": ["query"],
-    }
-
-    def run(self, query: str, max_results: int = 5) -> str:
-        max_results = max(1, min(int(max_results), 15))
-        try:
-            postings = fetch_postings()
-        except Exception as exc:
-            return f"Error: job search failed ({type(exc).__name__}: {exc})."
-
-        matches = match_postings(query, postings, max_results)
-        return format_postings(query, matches)
-
-
 class NewJobPostingsTool(Tool):
-    """Like JobSearchTool, but only returns postings this query hasn't seen before --
+    """Only returns postings this query hasn't seen before --
     remembered in SQLite so re-running the same search later reports only what's new.
     """
 

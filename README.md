@@ -2,7 +2,8 @@
 
 A personal-assistant agent that runs entirely on your own machine: a local LLM (via
 [Ollama](https://ollama.com)) reasons about each request and decides which tool(s) to use —
-web search, sandboxed file/code access, or reminders — then replies, optionally by voice.
+checking email, watching for newly posted jobs, or checking your calendar — then replies,
+optionally by voice.
 
 ## Architecture
 
@@ -16,14 +17,12 @@ jarvis/
     db.py               Shared SQLite connection/schema
     tools/
       base.py            Tool ABC + ToolRegistry
-      web_search.py       DuckDuckGo search (no API key needed)
-      files.py            Sandboxed read/write/list under data/workspace/
-      code_exec.py        Run short Python snippets in a subprocess
-      scheduler.py        Reminders (SQLite) + background due-checker
+      scheduler.py        Reminders (SQLite) + background due-checker (used by the
+                           voice/web reminder UI directly; not offered to the LLM)
       email_check.py       Inbox headers via IMAP (needs your credentials, see Setup)
-      job_search.py         Job postings via RemoteOK (no API key needed) + new-postings dedupe
+      job_search.py         New job postings via RemoteOK, deduped against what you've
+                             already seen per query (no API key needed)
       calendar_events.py     Upcoming Google Calendar events, read-only (see Setup)
-      news.py                Sector/topic news via DuckDuckGo news search
   agents/                Standalone single-purpose agents (see below)
     base.py               Shared LLM <-> tool loop each one runs on its own
     email_agent.py         EmailAgent — inbox briefings
@@ -44,10 +43,12 @@ jarvis/
 
 **How "multiple tasks allocated to an agent" works here:** there's one orchestrator
 (`core/agent.py`). Every user turn goes to the local LLM along with the JSON schema of every
-registered `Tool`. The model itself decides whether the request needs a web search, a file
-operation, code execution, a reminder, or just a direct answer, and asks for the matching
-tool call(s). Adding a new capability means writing one `Tool` subclass and registering it in
-`core/tools/__init__.py` — no routing logic to update.
+registered `Tool` — deliberately just three: email, new job postings, and calendar. The model
+decides whether the request needs one of those or just a direct answer, and asks for the
+matching tool call. Adding a new capability means writing one `Tool` subclass and registering
+it in `core/tools/__init__.py` — no routing logic to update. (Reminders still exist as their
+own feature — `scheduler.py`'s background due-checker plus the CLI/voice/web reminder
+commands — they're just not offered to the LLM as a tool call.)
 
 ## Standalone agents
 
@@ -204,9 +205,6 @@ request warrants it.
 - CLI voice mode (`jarvis.main`) requires local audio hardware and hasn't been exercised
   end-to-end in this sandboxed dev environment — verify it on your own machine. The web UI's
   voice input/output runs in the browser instead, so it doesn't have this limitation.
-- `run_python` and `web_search` are useful but not hardened against a fully adversarial user;
-  don't expose this assistant to untrusted input without adding stricter sandboxing
-  (e.g. containerized code execution, output size limits already in place).
 - Scheduling currently only supports local reminders.
 - `job_search`/`JobAgent` source from RemoteOK's free API, so results skew remote/tech roles.
   Swap in a broader provider (e.g. Adzuna, which needs a free API key) if you want

@@ -6,11 +6,9 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("JARVIS_DATA_DIR", BASE_DIR / "data"))
-WORKSPACE_DIR = Path(os.environ.get("JARVIS_WORKSPACE_DIR", DATA_DIR / "workspace"))
 DB_PATH = Path(os.environ.get("JARVIS_DB_PATH", DATA_DIR / "jarvis.db"))
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 
 # LLM backend (local Ollama server by default; kept pluggable via core/llm.py)
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
@@ -56,16 +54,17 @@ that gets tiresome fast. Be concise and efficient: no filler, no "As an AI..." d
 to the point, then offer a next step if one is useful. A touch of dry humor is welcome when it fits,
 but never at the expense of clarity.
 
-You can converse directly, and you have tools for web search, reading/writing files in a sandboxed
-workspace, running short Python snippets, managing reminders/scheduled tasks, checking the user's
-email inbox, searching current job postings, and getting recent news for a topic/sector.
+You can converse directly, and you have three tools: checking the user's email inbox
+(headers only, read-only), checking for newly posted jobs matching a query (only reports
+postings that are actually new since the last check), and checking upcoming Google Calendar
+events (read-only).
 
 Rules:
 - For greetings and small talk (e.g. "hi", "how are you"), just reply directly -- do not call a tool.
-- Use a tool only when the request actually needs current information, file/code work, or reminders.
-- If a tool call fails or returns an error, say plainly what went wrong (e.g. "web search failed:
-  <reason>") instead of guessing or repeatedly retrying the same call.
+- Use a tool only when the request actually needs current email/job/calendar data.
+- Every tool here prefixes a real failure with the literal text "Error:" -- only describe a
+  tool call as failed when the result actually starts with that. An empty result or "nothing
+  new" is a normal, successful outcome, not a failure -- just report it plainly.
 - Don't invent tool results; only report what a tool actually returned.
 - Keep spoken/short replies concise, since responses may be read aloud.
-- If a request is ambiguous or destructive (deleting files, running risky code), ask for confirmation first.
 """
