@@ -45,6 +45,122 @@
     color: #7fa7d8;
     letter-spacing: 1px;
   }
+
+  /* ---------- JARVIS HUD logo (top-right, animates with state) ---------- */
+  #jarvis-hud {
+    position: absolute;
+    top: 22px;
+    right: 28px;
+    width: 128px;
+    height: 128px;
+    z-index: 6;
+    cursor: pointer;
+    filter: drop-shadow(0 0 14px rgba(60, 170, 255, 0.35));
+    transition: opacity 0.3s, filter 0.3s;
+  }
+  #jarvis-hud.muted {
+    opacity: 0.35;
+    filter: grayscale(1);
+  }
+  #jarvis-hud .hud-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-sizing: border-box;
+  }
+  #jarvis-hud .ring-outer {
+    border: 1.5px dashed rgba(79, 209, 255, 0.55);
+    animation: hud-spin 18s linear infinite;
+  }
+  #jarvis-hud .ring-ticks {
+    inset: 10px;
+    background: repeating-conic-gradient(
+      rgba(120, 210, 255, 0.9) 0deg 2deg,
+      transparent 2deg 11.25deg
+    );
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 7px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 7px));
+    animation: hud-spin-reverse 26s linear infinite;
+  }
+  #jarvis-hud .ring-inner {
+    inset: 24px;
+    border: 1px solid rgba(143, 211, 255, 0.5);
+    animation: hud-spin 12s linear infinite;
+  }
+  #jarvis-hud .hud-core {
+    position: absolute;
+    inset: 34px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 40%, rgba(20, 60, 100, 0.9), rgba(4, 10, 20, 0.95));
+    border: 1px solid rgba(143, 211, 255, 0.55);
+    box-shadow: 0 0 18px rgba(60, 170, 255, 0.35) inset, 0 0 10px rgba(60, 170, 255, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    animation: hud-pulse 3.6s ease-in-out infinite;
+  }
+  #jarvis-hud .hud-core span {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: #cfeaff;
+    text-shadow: 0 0 8px rgba(90, 190, 255, 0.8);
+  }
+
+  @keyframes hud-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  @keyframes hud-spin-reverse {
+    from { transform: rotate(360deg); }
+    to { transform: rotate(0deg); }
+  }
+  @keyframes hud-pulse {
+    0%, 100% { box-shadow: 0 0 18px rgba(60, 170, 255, 0.35) inset, 0 0 10px rgba(60, 170, 255, 0.3); }
+    50% { box-shadow: 0 0 26px rgba(90, 200, 255, 0.55) inset, 0 0 18px rgba(90, 200, 255, 0.5); }
+  }
+
+  /* active states speed up / brighten the rings — driven by JS via class swap */
+  #jarvis-hud.state-listening .ring-outer,
+  #jarvis-hud.state-thinking .ring-outer,
+  #jarvis-hud.state-speaking .ring-outer {
+    animation-duration: 4s;
+  }
+  #jarvis-hud.state-listening .ring-ticks,
+  #jarvis-hud.state-thinking .ring-ticks,
+  #jarvis-hud.state-speaking .ring-ticks {
+    animation-duration: 6s;
+  }
+  #jarvis-hud.state-listening .ring-inner,
+  #jarvis-hud.state-thinking .ring-inner,
+  #jarvis-hud.state-speaking .ring-inner {
+    animation-duration: 2.5s;
+  }
+  #jarvis-hud.state-listening .hud-core {
+    animation: hud-pulse 1s ease-in-out infinite;
+  }
+  #jarvis-hud.state-listening {
+    filter: drop-shadow(0 0 20px rgba(255, 90, 122, 0.5));
+  }
+  #jarvis-hud.state-listening .hud-ring.ring-ticks {
+    background: repeating-conic-gradient(rgba(255, 120, 150, 0.9) 0deg 2deg, transparent 2deg 11.25deg);
+  }
+  #jarvis-hud.state-thinking .hud-core {
+    animation: hud-pulse 0.8s ease-in-out infinite;
+  }
+  #jarvis-hud.state-thinking {
+    filter: drop-shadow(0 0 20px rgba(255, 200, 90, 0.5));
+  }
+  #jarvis-hud.state-thinking .hud-ring.ring-ticks {
+    background: repeating-conic-gradient(rgba(255, 210, 120, 0.9) 0deg 2deg, transparent 2deg 11.25deg);
+  }
+  #jarvis-hud.state-speaking .hud-core {
+    animation: hud-pulse 0.6s ease-in-out infinite;
+  }
+  #jarvis-hud.state-speaking {
+    filter: drop-shadow(0 0 22px rgba(90, 230, 255, 0.6));
+  }
+
   #panel {
     position: absolute;
     top: 0;
@@ -239,6 +355,13 @@
   <div id="title-bar">
     <h1>J A R V I S</h1>
     <p id="node-count">knowledge galaxy — loading…</p>
+  </div>
+
+  <div id="jarvis-hud" class="state-idle" title="Click to mute/unmute wake-word listening">
+    <div class="hud-ring ring-outer"></div>
+    <div class="hud-ring ring-ticks"></div>
+    <div class="hud-ring ring-inner"></div>
+    <div class="hud-core"><span>J.A.R.V.I.S</span></div>
   </div>
 
   <div id="legend"></div>
@@ -475,6 +598,7 @@
     const chatStatus = document.getElementById("chat-status");
     const answerBox = document.getElementById("answer-box");
     const micBtn = document.getElementById("mic-btn");
+    const hudEl = document.getElementById("jarvis-hud");
 
     function setStatus(text) {
       chatStatus.textContent = text;
@@ -483,6 +607,12 @@
     function showAnswer(text) {
       answerBox.textContent = text;
       answerBox.classList.add("visible");
+    }
+
+    // ---------- HUD state (idle / listening / thinking / speaking) ----------
+    function setJarvisState(state) {
+      hudEl.classList.remove("state-idle", "state-listening", "state-thinking", "state-speaking");
+      hudEl.classList.add(`state-${state}`);
     }
 
     // ---------- speech output (speak every answer aloud) ----------
@@ -508,6 +638,7 @@
     }
 
     function unlockAudio() {
+      startWakeListening();
       if (audioUnlocked || !("speechSynthesis" in window)) return;
       audioUnlocked = true;
       // Speak an empty/silent utterance so the browser's autoplay gate opens
@@ -520,17 +651,29 @@
 
     function speak(text) {
       if (!("speechSynthesis" in window) || !text) return;
+      pauseWakeListening();
       window.speechSynthesis.cancel();
       const utter = new SpeechSynthesisUtterance(text);
       if (britishVoice) utter.voice = britishVoice;
       utter.lang = britishVoice ? britishVoice.lang : "en-GB";
       utter.rate = 1;
+      setJarvisState("speaking");
+      utter.onend = () => {
+        setJarvisState("idle");
+        resumeWakeListening();
+      };
+      utter.onerror = () => {
+        setJarvisState("idle");
+        resumeWakeListening();
+      };
       window.speechSynthesis.speak(utter);
     }
 
     async function askJarvis(question) {
       chatSend.disabled = true;
       setStatus("● thinking…");
+      setJarvisState("thinking");
+      pauseWakeListening();
       try {
         const res = await fetch("/chat", {
           method: "POST",
@@ -541,7 +684,7 @@
         const data = await res.json();
         const answer = data.answer || "(no answer)";
         showAnswer(answer);
-        speak(answer);
+        speak(answer); // moves HUD to "speaking", then back to "idle" + resumes wake listening
         revealAnswerSources(data.nodes);
         setStatus("");
         return data;
@@ -578,6 +721,8 @@
         listening = true;
         micBtn.classList.add("listening");
         setStatus("● listening…");
+        pauseWakeListening();
+        setJarvisState("listening");
       };
 
       recognition.onresult = (event) => {
@@ -590,6 +735,8 @@
 
       recognition.onerror = (event) => {
         setStatus("");
+        setJarvisState("idle");
+        resumeWakeListening();
         if (event.error === "not-allowed" || event.error === "service-not-allowed") {
           showAnswer("Microphone blocked — allow it via the lock icon in the address bar.");
         }
@@ -618,8 +765,127 @@
       micBtn.title = "Speech recognition needs Chrome or Edge";
     }
 
+    // ---------- Prompt 5-ish: wake word + casual assistant behavior ----------
+    // Always-listening background recognizer for "jarvis" / "hey jarvis" /
+    // "hello jarvis". Separate from the push-to-talk `recognition` above —
+    // only one SpeechRecognition session can run at a time in Chrome, so
+    // this pauses whenever the mic button is used or Jarvis is speaking,
+    // and resumes automatically afterwards.
+    let wakeRecognition = null;
+    let wakeEnabled = true; // toggled by clicking the HUD
+    let wakeActive = false;
+    let awaitingFollowUp = false;
+    let followUpTimer = null;
+
+    const GREETING_ACKS = [
+      "Yes, sir?",
+      "I'm listening.",
+      "Go ahead.",
+      "At your service, sir.",
+      "How can I help?",
+      "Right here, sir.",
+    ];
+
+    function randomAck(list) {
+      return list[Math.floor(Math.random() * list.length)];
+    }
+
+    function startWakeListening() {
+      if (!SpeechRecognitionImpl || !wakeEnabled || wakeActive || listening) return;
+      wakeRecognition = new SpeechRecognitionImpl();
+      wakeRecognition.lang = "en-GB";
+      wakeRecognition.continuous = true;
+      wakeRecognition.interimResults = false;
+
+      wakeRecognition.onstart = () => {
+        wakeActive = true;
+      };
+      wakeRecognition.onresult = (event) => {
+        const last = event.results[event.results.length - 1];
+        handleAmbientTranscript((last[0].transcript || "").trim());
+      };
+      wakeRecognition.onerror = () => {
+        // "no-speech" / "aborted" are routine in always-on mode — ignore quietly.
+      };
+      wakeRecognition.onend = () => {
+        wakeActive = false;
+        if (wakeEnabled) setTimeout(startWakeListening, 300);
+      };
+
+      try {
+        wakeRecognition.start();
+      } catch (err) {
+        // already starting; ignore.
+      }
+    }
+
+    function pauseWakeListening() {
+      if (wakeRecognition) {
+        wakeRecognition.onend = null; // don't auto-restart from a deliberate pause
+        try {
+          wakeRecognition.stop();
+        } catch (err) {
+          // ignore
+        }
+      }
+      wakeActive = false;
+    }
+
+    function resumeWakeListening() {
+      if (wakeEnabled) startWakeListening();
+    }
+
+    function handleAmbientTranscript(transcript) {
+      if (!transcript) return;
+      const hasWake = /\bjarvis\b/i.test(transcript);
+
+      if (hasWake) {
+        const command = transcript.replace(/^.*?\bjarvis\b[,:]?\s*/i, "").trim();
+        wakeUp(command);
+      } else if (awaitingFollowUp) {
+        wakeUp(transcript);
+      }
+      // otherwise: not addressed to Jarvis — ignore ambient chatter.
+    }
+
+    function wakeUp(command) {
+      clearTimeout(followUpTimer);
+      awaitingFollowUp = false;
+
+      const isBareGreeting = command.length === 0 || /^(hi|hey|hello|yo|there)[.!?,]*$/i.test(command);
+
+      if (isBareGreeting) {
+        const ack = randomAck(GREETING_ACKS);
+        showAnswer(ack);
+        speak(ack);
+        awaitingFollowUp = true;
+        followUpTimer = setTimeout(() => {
+          awaitingFollowUp = false;
+        }, 8000);
+      } else {
+        chatInput.value = "";
+        askJarvis(command);
+      }
+    }
+
+    if (SpeechRecognitionImpl) {
+      hudEl.addEventListener("click", () => {
+        unlockAudio();
+        wakeEnabled = !wakeEnabled;
+        hudEl.classList.toggle("muted", !wakeEnabled);
+        if (wakeEnabled) {
+          resumeWakeListening();
+        } else {
+          pauseWakeListening();
+        }
+      });
+    } else {
+      hudEl.title = "Wake-word listening needs Chrome or Edge";
+    }
+
     window.__jarvisAsk = askJarvis;
     window.__jarvisSpeak = speak;
+    window.__jarvisSetState = setJarvisState;
   </script>
 </body>
 </html>
