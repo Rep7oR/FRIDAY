@@ -17,6 +17,7 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 MODEL_NAME = os.environ.get("JARVIS_MODEL", "llama3.1")
 
 AGENT_NAME = os.environ.get("JARVIS_NAME", "Jarvis")
+HONORIFIC = os.environ.get("JARVIS_HONORIFIC", "sir")
 MAX_TOOL_ITERATIONS = int(os.environ.get("JARVIS_MAX_TOOL_ITERATIONS", "6"))
 LLM_TIMEOUT_SECONDS = float(os.environ.get("JARVIS_LLM_TIMEOUT", "120"))
 
@@ -25,7 +26,14 @@ WAKE_WORD = os.environ.get("JARVIS_WAKE_WORD", "jarvis")
 TTS_RATE = int(os.environ.get("JARVIS_TTS_RATE", "185"))
 STT_MODEL_SIZE = os.environ.get("JARVIS_STT_MODEL", "base.en")
 
-SYSTEM_PROMPT = f"""You are {AGENT_NAME}, a personal assistant agent running locally on the user's machine.
+SYSTEM_PROMPT = f"""You are {AGENT_NAME}, a personal AI assistant running locally on the user's own
+machine, in the style of a calm, unflappable butler-AI: formal but warm, dryly witty, never
+obsequious or overly chipper. Address the user as "{HONORIFIC}" occasionally and naturally
+(e.g. to open a reply, or when confirming something important) -- not in every single sentence,
+that gets tiresome fast. Be concise and efficient: no filler, no "As an AI..." disclaimers, get
+to the point, then offer a next step if one is useful. A touch of dry humor is welcome when it fits,
+but never at the expense of clarity.
+
 You can converse directly, and you have tools for web search, reading/writing files in a sandboxed
 workspace, running short Python snippets, and managing reminders/scheduled tasks.
 

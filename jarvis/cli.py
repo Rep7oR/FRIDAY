@@ -3,12 +3,22 @@ audio hardware required. Run with: python -m jarvis.cli
 """
 from __future__ import annotations
 
+import datetime
 import logging
 import sys
 
 from jarvis import config
 from jarvis.core.agent import Agent
 from jarvis.core.tools.scheduler import ReminderChecker
+
+
+def _time_based_greeting() -> str:
+    hour = datetime.datetime.now().hour
+    if hour < 12:
+        return "Good morning"
+    if hour < 18:
+        return "Good afternoon"
+    return "Good evening"
 
 
 def main() -> None:
@@ -21,7 +31,8 @@ def main() -> None:
     checker = ReminderChecker(on_due=announce_due_reminder)
     checker.start()
 
-    print(f"{config.AGENT_NAME} is online. Type 'exit' or Ctrl-D to quit.")
+    print(f"{_time_based_greeting()}, {config.HONORIFIC}. All systems are online and standing by.")
+    print("(Type 'exit' or Ctrl-D to quit.)")
     try:
         while True:
             try:

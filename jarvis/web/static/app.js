@@ -16,6 +16,24 @@
 
   const WAKE_PHRASE = "hey jarvis";
   let voiceOutputEnabled = true;
+  let honorific = "sir"; // refined once /api/status reports the configured JARVIS_HONORIFIC
+
+  function timeBasedGreeting() {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
+    return "Good evening";
+  }
+
+  function randomAckPhrase() {
+    const phrases = [
+      `Yes, ${honorific}?`,
+      `Go ahead, ${honorific}.`,
+      `I'm listening, ${honorific}.`,
+      `At your service, ${honorific}.`,
+    ];
+    return phrases[Math.floor(Math.random() * phrases.length)];
+  }
 
   function setCoreState(state) {
     coreStage.classList.remove("listening", "thinking", "speaking");
@@ -59,19 +77,23 @@
     appendEntry("System", message);
   }
 
-  function speak(text) {
-    if (!voiceOutputEnabled || !("speechSynthesis" in window) || !text) return;
+  function speak(text, onDone) {
+    const done = onDone || resumeWakeListeningIfEnabled;
+    if (!voiceOutputEnabled || !("speechSynthesis" in window) || !text) {
+      done();
+      return;
+    }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.02;
     utterance.onstart = () => setCoreState("speaking");
     utterance.onend = () => {
       setCoreState("idle");
-      resumeWakeListeningIfEnabled();
+      done();
     };
     utterance.onerror = () => {
       setCoreState("idle");
-      resumeWakeListeningIfEnabled();
+      done();
     };
     window.speechSynthesis.speak(utterance);
   }
@@ -92,10 +114,6 @@
       const reply = data.reply || "(no response)";
       appendEntry("Jarvis", reply);
       speak(reply);
-      if (!voiceOutputEnabled) {
-        setCoreState("idle");
-        resumeWakeListeningIfEnabled();
-      }
       refreshReminders();
     } catch (err) {
       appendEntry("Jarvis", `Connection error: ${err}`);
@@ -184,7 +202,11 @@
       if (after.length > 2) {
         sendMessage(after); // wake phrase + command said in one breath
       } else {
-        captureOnce(); // wake phrase alone -- listen for the command next
+        // Wake phrase alone -- acknowledge it out loud, then listen for the actual command.
+        const ack = randomAckPhrase();
+        appendEntry("Jarvis", ack);
+        stopRecognizer();
+        speak(ack, () => captureOnce());
       }
     };
     recognizer.onend = () => {
@@ -250,6 +272,7 @@
     try {
       const response = await fetch("/api/status");
       const data = await response.json();
+      if (data.honorific) honorific = data.honorific;
       if (data.ollama_reachable && data.model_available) {
         statusDot.className = "status-dot online";
         statusText.textContent = `online · ${data.model}`;
@@ -528,16 +551,17 @@
 
   setCoreState("idle");
   tickClock();
-  refreshStatus();
+  drawTickRing();
   refreshReminders();
   refreshSystemStats();
   requestWeather();
-  drawTickRing();
   setInterval(tickClock, 1000);
-  setInterval(refreshStatus, 15000);
   setInterval(refreshReminders, 20000);
   setInterval(refreshSystemStats, 2000);
   setInterval(requestWeather, 900000);
 
-  appendEntry("Jarvis", "Systems online. How can I help?");
+  refreshStatus().then(() => {
+    appendEntry("Jarvis", `${timeBasedGreeting()}, ${honorific}. All systems are online and standing by.`);
+  });
+  setInterval(refreshStatus, 15000);
 })();

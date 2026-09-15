@@ -77,9 +77,21 @@ def status() -> dict:
         online = config.MODEL_NAME in models or any(
             m.startswith(config.MODEL_NAME) for m in models
         )
-        return {"ollama_reachable": True, "model_available": online, "model": config.MODEL_NAME}
+        return {
+            "ollama_reachable": True,
+            "model_available": online,
+            "model": config.MODEL_NAME,
+            "agent_name": config.AGENT_NAME,
+            "honorific": config.HONORIFIC,
+        }
     except Exception:
-        return {"ollama_reachable": False, "model_available": False, "model": config.MODEL_NAME}
+        return {
+            "ollama_reachable": False,
+            "model_available": False,
+            "model": config.MODEL_NAME,
+            "agent_name": config.AGENT_NAME,
+            "honorific": config.HONORIFIC,
+        }
 
 
 @app.get("/api/system")
