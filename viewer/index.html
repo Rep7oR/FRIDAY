@@ -190,6 +190,39 @@
     opacity: 0.5;
     cursor: default;
   }
+  #mic-btn {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(100, 170, 255, 0.4);
+    background: rgba(20, 34, 56, 0.8);
+    color: #8fd3ff;
+    font-size: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: box-shadow 0.2s, background 0.2s;
+  }
+  #mic-btn:hover {
+    background: rgba(30, 50, 78, 0.9);
+  }
+  #mic-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  #mic-btn.listening {
+    background: #ff5a7a;
+    color: #fff;
+    box-shadow: 0 0 0 0 rgba(255, 90, 122, 0.6);
+    animation: mic-pulse 1.4s ease-out infinite;
+  }
+  @keyframes mic-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(255, 90, 122, 0.55); }
+    70% { box-shadow: 0 0 0 14px rgba(255, 90, 122, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 90, 122, 0); }
+  }
   #chat-status {
     text-align: center;
     font-size: 11px;
@@ -221,6 +254,7 @@
     <div id="answer-box"></div>
     <div id="chat-status"></div>
     <form id="chat-form">
+      <button id="mic-btn" type="button" title="Click and speak">🎙</button>
       <input id="chat-input" type="text" autocomplete="off" placeholder="Ask something about your notes…" />
       <button id="chat-send" type="submit">Ask</button>
     </form>
@@ -397,6 +431,7 @@
     const chatSend = document.getElementById("chat-send");
     const chatStatus = document.getElementById("chat-status");
     const answerBox = document.getElementById("answer-box");
+    const micBtn = document.getElementById("mic-btn");
 
     function setStatus(text) {
       chatStatus.textContent = text;
@@ -405,6 +440,49 @@
     function showAnswer(text) {
       answerBox.textContent = text;
       answerBox.classList.add("visible");
+    }
+
+    // ---------- speech output (speak every answer aloud) ----------
+    let audioUnlocked = false;
+    let britishVoice = null;
+
+    function pickBritishVoice() {
+      if (!("speechSynthesis" in window)) return null;
+      const voices = window.speechSynthesis.getVoices();
+      return (
+        voices.find((v) => v.lang === "en-GB" && /female/i.test(v.name)) ||
+        voices.find((v) => v.lang === "en-GB") ||
+        voices.find((v) => /British|UK English/i.test(v.name)) ||
+        null
+      );
+    }
+
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        britishVoice = pickBritishVoice();
+      };
+      britishVoice = pickBritishVoice();
+    }
+
+    function unlockAudio() {
+      if (audioUnlocked || !("speechSynthesis" in window)) return;
+      audioUnlocked = true;
+      // Speak an empty/silent utterance so the browser's autoplay gate opens
+      // now, while this is still inside a user-gesture call stack.
+      const warmup = new SpeechSynthesisUtterance(" ");
+      warmup.volume = 0;
+      window.speechSynthesis.speak(warmup);
+    }
+    document.body.addEventListener("click", unlockAudio, { once: true });
+
+    function speak(text) {
+      if (!("speechSynthesis" in window) || !text) return;
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      if (britishVoice) utter.voice = britishVoice;
+      utter.lang = britishVoice ? britishVoice.lang : "en-GB";
+      utter.rate = 1;
+      window.speechSynthesis.speak(utter);
     }
 
     async function askJarvis(question) {
@@ -418,11 +496,15 @@
           body: JSON.stringify({ message: question }),
         });
         const data = await res.json();
-        showAnswer(data.answer || "(no answer)");
+        const answer = data.answer || "(no answer)";
+        showAnswer(answer);
+        speak(answer);
         setStatus("");
         return data;
       } catch (err) {
-        showAnswer("Couldn't reach the server. Is server.py running?");
+        const failMsg = "Couldn't reach the server. Is server.py running?";
+        showAnswer(failMsg);
+        speak(failMsg);
         setStatus("");
       } finally {
         chatSend.disabled = false;
@@ -437,7 +519,63 @@
       askJarvis(question);
     });
 
+    // ---------- speech input (mic button) ----------
+    const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let listening = false;
+
+    if (SpeechRecognitionImpl) {
+      recognition = new SpeechRecognitionImpl();
+      recognition.lang = "en-GB";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        listening = true;
+        micBtn.classList.add("listening");
+        setStatus("● listening…");
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript.trim();
+        if (transcript) {
+          chatInput.value = "";
+          askJarvis(transcript);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        setStatus("");
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          showAnswer("Microphone blocked — allow it via the lock icon in the address bar.");
+        }
+      };
+
+      recognition.onend = () => {
+        listening = false;
+        micBtn.classList.remove("listening");
+        if (chatStatus.textContent === "● listening…") setStatus("");
+      };
+
+      micBtn.addEventListener("click", () => {
+        unlockAudio();
+        if (listening) {
+          recognition.stop();
+          return;
+        }
+        try {
+          recognition.start();
+        } catch (err) {
+          // start() throws if called twice in a row; ignore.
+        }
+      });
+    } else {
+      micBtn.disabled = true;
+      micBtn.title = "Speech recognition needs Chrome or Edge";
+    }
+
     window.__jarvisAsk = askJarvis;
+    window.__jarvisSpeak = speak;
   </script>
 </body>
 </html>
