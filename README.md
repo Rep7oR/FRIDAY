@@ -64,6 +64,15 @@ print(JobAgent().check("python developer"))     # only postings new since last c
 print(CalendarAgent().briefing(days_ahead=3))   # what's coming up
 ```
 
+Or from a terminal, no Python needed:
+
+```bash
+python -m jarvis.agents email                       # summarize unread inbox
+python -m jarvis.agents email --all --max-results 20 # include read mail too
+python -m jarvis.agents jobs "python developer"      # only postings new since last check
+python -m jarvis.agents calendar --days 3            # what's coming up
+```
+
 - **EmailAgent** — same read-only IMAP headers as `check_email` (see Setup below for
   credentials), summarized into a briefing instead of a raw list.
 - **JobAgent** — searches RemoteOK and remembers what it's already shown you per query
@@ -71,6 +80,10 @@ print(CalendarAgent().briefing(days_ahead=3))   # what's coming up
   first check for a query has no baseline yet and says so rather than implying nothing's open.
 - **CalendarAgent** — read-only upcoming Google Calendar events. Needs a one-time OAuth
   setup — see "Enable calendar events" below.
+
+Each is also a natural fit for a cron job / scheduled task (e.g. `python -m jarvis.agents jobs
+"..." >> jobs.log` once an hour) since they're stateless per invocation aside from JobAgent's
+SQLite dedupe memory.
 
 ## Setup
 
