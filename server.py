@@ -193,7 +193,16 @@ def call_pollinations(config, system_prompt, history, question):
         POLLINATIONS_API_URL,
         data=payload,
         method="POST",
-        headers={"content-type": "application/json"},
+        headers={
+            "content-type": "application/json",
+            # Pollinations sits behind Cloudflare, which blocks the default
+            # "Python-urllib/x.y" user agent (error 1010). A normal browser
+            # UA gets through.
+            "user-agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
+        },
     )
 
     try:
