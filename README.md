@@ -20,6 +20,9 @@ jarvis/
       files.py            Sandboxed read/write/list under data/workspace/
       code_exec.py        Run short Python snippets in a subprocess
       scheduler.py        Reminders (SQLite) + background due-checker
+      email_check.py       Inbox headers via IMAP (needs your credentials, see Setup)
+      job_search.py         Job postings via RemoteOK (no API key needed)
+      news.py                Sector/topic news via DuckDuckGo news search
   cli.py                Text-mode entrypoint (no audio hardware needed)
   voice/
     stt.py               Speech-to-text (faster-whisper, local)
@@ -54,6 +57,22 @@ tool call(s). Adding a new capability means writing one `Tool` subclass and regi
    ```
    On Linux, voice mode also needs the `espeak` system package for `pyttsx3`
    (`apt install espeak`) and PortAudio for `sounddevice` (`apt install portaudio19-dev`).
+3. **(Optional) Enable email checking.** The `check_email` tool needs an app-specific
+   password, never your real account password:
+   - **Gmail:** turn on 2-Step Verification, then create one at
+     [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords).
+   - **Outlook/Microsoft:** create an app password at
+     [account.microsoft.com/security](https://account.microsoft.com/security) (needs
+     2-factor auth enabled first).
+   - Then set:
+     ```bash
+     export JARVIS_EMAIL_ADDRESS="you@gmail.com"
+     export JARVIS_EMAIL_APP_PASSWORD="xxxx xxxx xxxx xxxx"
+     export JARVIS_EMAIL_IMAP_HOST="imap.gmail.com"   # imap-mail.outlook.com for Outlook
+     ```
+   Without these set, `check_email` just tells you it isn't configured instead of failing
+   cryptically. The tool only ever reads headers (sender/subject/date) — never message
+   bodies, and there's no send/delete capability.
 
 ## Running it
 
@@ -94,6 +113,10 @@ All settings are environment variables with local defaults (see `jarvis/config.p
 | `JARVIS_DATA_DIR` | `./data` | Where the SQLite DB and file-tool sandbox live |
 | `JARVIS_WAKE_WORD` | `jarvis` | Wake word for `--wake-word` mode |
 | `JARVIS_STT_MODEL` | `base.en` | faster-whisper model size |
+| `JARVIS_HONORIFIC` | `sir` | How Jarvis addresses you |
+| `JARVIS_EMAIL_ADDRESS` | _(unset)_ | Email address for `check_email` |
+| `JARVIS_EMAIL_APP_PASSWORD` | _(unset)_ | App-specific password (see Setup) |
+| `JARVIS_EMAIL_IMAP_HOST` | `imap.gmail.com` | IMAP server |
 
 ## Tests
 
@@ -124,5 +147,8 @@ request warrants it.
 - `run_python` and `web_search` are useful but not hardened against a fully adversarial user;
   don't expose this assistant to untrusted input without adding stricter sandboxing
   (e.g. containerized code execution, output size limits already in place).
-- Scheduling currently only supports local reminders; calendar/email integrations are a
-  natural next `Tool` to add once you have credentials for those services.
+- Scheduling currently only supports local reminders; calendar integration is a natural
+  next `Tool` to add if you want it, following the same pattern as `email_check.py`.
+- `job_search` sources from RemoteOK's free API, so results skew remote/tech roles. Swap in
+  a broader provider (e.g. Adzuna, which needs a free API key) if you want local/non-remote
+  listings.

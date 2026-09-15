@@ -77,9 +77,9 @@ body {
 }
 
 .status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); letter-spacing: 0.08em; }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
-.status-dot.online { background: #52ffb8; box-shadow: 0 0 8px 2px rgba(82,255,184,0.6); }
-.status-dot.offline { background: var(--warn); box-shadow: 0 0 8px 2px rgba(255,93,93,0.6); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); transition: background 0.3s ease, box-shadow 0.3s ease; }
+.status-dot.online { background: #52ffb8; box-shadow: 0 0 8px 2px rgba(82,255,184,0.6); animation: pulse-dot 2.4s ease-in-out infinite; }
+.status-dot.offline { background: var(--warn); box-shadow: 0 0 8px 2px rgba(255,93,93,0.6); animation: pulse-dot 1.4s ease-in-out infinite; }
 
 .clock {
   font-family: 'Orbitron', sans-serif;
@@ -218,7 +218,7 @@ body {
 .qa-btn:hover { background: rgba(52,226,255,0.15); border-color: var(--accent); box-shadow: 0 0 8px var(--accent-glow); color: var(--accent); transform: translateY(-1px); }
 .qa-btn:active { transform: scale(0.94); }
 
-.widget-weather .weather-body { font-size: 12px; line-height: 1.8; color: var(--text); }
+.widget-weather .weather-body { font-size: 12px; line-height: 1.8; color: var(--text); animation: entry-in 0.35s cubic-bezier(.2,.8,.2,1); }
 .widget-weather .weather-temp {
   font-family: 'Orbitron', sans-serif;
   font-size: 26px;
@@ -240,7 +240,7 @@ body {
 .widget-reminders .reminders-list, .widget-log .chat-log { overflow-y: auto; }
 
 .reminders-list { list-style: none; margin: 0; padding: 0; font-size: 12px; line-height: 1.7; }
-.reminders-list li { padding: 6px 0; border-bottom: 1px dashed rgba(52,226,255,0.12); color: var(--text); }
+.reminders-list li { padding: 6px 0; border-bottom: 1px dashed rgba(52,226,255,0.12); color: var(--text); animation: entry-in 0.3s cubic-bezier(.2,.8,.2,1); }
 .muted { color: var(--text-dim); }
 
 .chat-log { display: flex; flex-direction: column; gap: 10px; font-size: 12px; }
@@ -333,30 +333,41 @@ body {
   animation: pulse-glow 2.6s ease-in-out infinite;
 }
 
-/* Triangular reactor centerpiece: three stroked triangles offset by 120deg, spinning slowly
-   in alternating directions around a small glowing core -- an original sci-fi HUD motif, not
-   a copy of any specific film's design/branding. */
-.reactor { position: absolute; inset: 95px; }
-.reactor-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.reactor-tri {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 1.6;
-  vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 0 5px var(--accent-glow));
-  transform-box: fill-box;
-  transform-origin: center;
-}
-.reactor-tri-1 { animation: spin 9s linear infinite; opacity: 0.85; }
-.reactor-tri-2 { animation: spin-reverse 9s linear infinite; transform: rotate(120deg); opacity: 0.55; }
-.reactor-tri-3 { animation: spin 9s linear infinite; transform: rotate(240deg); opacity: 0.55; }
-.reactor-core {
+/* Wordmark centerpiece: an animated glowing "JARVIS" wordmark with a sweeping gradient shine,
+   ringed by a thin rotating hex-ish outline -- an original mark, not a copy of any specific
+   film's design/branding. */
+.wordmark-ring {
   position: absolute;
-  inset: 40%;
-  border-radius: 2px;
-  background: radial-gradient(circle at 40% 35%, #eafcff, var(--accent) 45%, var(--accent-dim) 100%);
-  box-shadow: 0 0 30px 8px var(--accent-glow), inset 0 0 16px rgba(255,255,255,0.6);
-  animation: pulse-glow 2.6s ease-in-out infinite;
+  inset: 65px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  transform: rotate(45deg);
+  animation: spin 22s linear infinite;
+}
+.wordmark {
+  position: absolute;
+  inset: 95px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  background: linear-gradient(100deg, var(--accent-dim) 0%, #fff 45%, var(--accent) 55%, var(--accent-dim) 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 14px var(--accent-glow));
+  animation: wordmark-sweep 5s linear infinite, pulse-glow 3s ease-in-out infinite;
+  user-select: none;
+}
+
+@keyframes wordmark-sweep {
+  from { background-position: 0% 0; }
+  to { background-position: -300% 0; }
 }
 
 .waveform {
@@ -388,15 +399,20 @@ body {
 /* state variants driven by JS toggling a class on .core-stage */
 .core-stage.listening .core-glow { animation-duration: 1s; }
 .core-stage.listening .core-state { color: #52ffb8; }
+.core-stage.listening .wordmark {
+  background-image: linear-gradient(100deg, #0f7d94 0%, #fff 45%, #52ffb8 55%, #0f7d94 100%);
+  filter: drop-shadow(0 0 16px rgba(82,255,184,0.6));
+}
+.core-stage.listening .wordmark-ring { border-color: rgba(82,255,184,0.5); }
 .core-stage.thinking .ring-outer { animation-duration: 3s; }
 .core-stage.thinking .ring-mid { animation-duration: 2s; }
 .core-stage.thinking .ring-inner { animation-duration: 1.2s; }
-.core-stage.thinking .reactor-tri { animation-duration: 2.5s; }
+.core-stage.thinking .wordmark { animation-duration: 1.4s, 1.2s; }
+.core-stage.thinking .wordmark-ring { animation-duration: 4s; }
 .core-stage.thinking .core-state { color: var(--accent); }
 .core-stage.speaking .core-glow { animation: pulse-glow 0.5s ease-in-out infinite; }
-.core-stage.speaking .reactor-core { animation: pulse-glow 0.4s ease-in-out infinite; }
+.core-stage.speaking .wordmark { animation-duration: 5s, 0.5s; }
 .core-stage.speaking .core-state { color: #ffd452; }
-.core-stage.listening .reactor-core { box-shadow: 0 0 40px 10px rgba(82,255,184,0.6), inset 0 0 16px rgba(255,255,255,0.6); }
 
 .composer {
   display: flex;

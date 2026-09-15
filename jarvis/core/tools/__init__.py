@@ -1,6 +1,9 @@
 from jarvis.core.tools.base import Tool, ToolRegistry
 from jarvis.core.tools.code_exec import RunPythonTool
+from jarvis.core.tools.email_check import CheckEmailTool
 from jarvis.core.tools.files import ListFilesTool, ReadFileTool, WriteFileTool
+from jarvis.core.tools.job_search import JobSearchTool
+from jarvis.core.tools.news import NewsTool
 from jarvis.core.tools.scheduler import (
     AddReminderTool,
     CompleteReminderTool,
@@ -23,6 +26,9 @@ def build_default_registry() -> ToolRegistry:
         ListRemindersTool(),
         CompleteReminderTool(),
         DeleteReminderTool(),
+        CheckEmailTool(),
+        JobSearchTool(),
+        NewsTool(),
     ):
         registry.register(tool)
     return registry

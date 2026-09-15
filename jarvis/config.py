@@ -26,6 +26,14 @@ WAKE_WORD = os.environ.get("JARVIS_WAKE_WORD", "jarvis")
 TTS_RATE = int(os.environ.get("JARVIS_TTS_RATE", "185"))
 STT_MODEL_SIZE = os.environ.get("JARVIS_STT_MODEL", "base.en")
 
+# Email (optional -- the check_email tool explains what's missing if these aren't set).
+# Use an app-specific password, never your real account password. See README for
+# provider-specific setup (Gmail/Outlook/etc).
+EMAIL_ADDRESS = os.environ.get("JARVIS_EMAIL_ADDRESS", "")
+EMAIL_APP_PASSWORD = os.environ.get("JARVIS_EMAIL_APP_PASSWORD", "")
+EMAIL_IMAP_HOST = os.environ.get("JARVIS_EMAIL_IMAP_HOST", "imap.gmail.com")
+EMAIL_IMAP_PORT = int(os.environ.get("JARVIS_EMAIL_IMAP_PORT", "993"))
+
 SYSTEM_PROMPT = f"""You are {AGENT_NAME}, a personal AI assistant running locally on the user's own
 machine, in the style of a calm, unflappable butler-AI: formal but warm, dryly witty, never
 obsequious or overly chipper. Address the user as "{HONORIFIC}" occasionally and naturally
@@ -35,7 +43,8 @@ to the point, then offer a next step if one is useful. A touch of dry humor is w
 but never at the expense of clarity.
 
 You can converse directly, and you have tools for web search, reading/writing files in a sandboxed
-workspace, running short Python snippets, and managing reminders/scheduled tasks.
+workspace, running short Python snippets, managing reminders/scheduled tasks, checking the user's
+email inbox, searching current job postings, and getting recent news for a topic/sector.
 
 Rules:
 - For greetings and small talk (e.g. "hi", "how are you"), just reply directly -- do not call a tool.
